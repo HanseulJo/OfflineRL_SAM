@@ -128,6 +128,19 @@ class SACImpl(DDPGBaseImpl):
         assert self._temp_optim is not None
         assert self._policy is not None
         assert self._log_temp is not None
+        ######## For SAM ##########
+        if 'SAM' in self._temp_optim_factory._optim_cls.__name__:
+            def closure():
+                self._temp_optim.zero_grad()
+                with torch.no_grad():
+                    _, log_prob = self._policy.sample_with_log_prob(batch.observations)
+                    targ_temp = log_prob - self._action_size
+                loss = -(self._log_temp().exp() * targ_temp).mean()
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         self._temp_optim.zero_grad()
 
@@ -138,7 +151,10 @@ class SACImpl(DDPGBaseImpl):
         loss = -(self._log_temp().exp() * targ_temp).mean()
 
         loss.backward()
-        self._temp_optim.step()
+        #self._temp_optim.step()
+        ######## For SAM ##########
+        self._temp_optim.step(closure)
+        ###########################
 
         # current temperature value
         cur_temp = self._log_temp().exp().cpu().detach().numpy()[0][0]
@@ -295,6 +311,17 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
     @torch_api()
     def update_critic(self, batch: TorchMiniBatch) -> np.ndarray:
         assert self._critic_optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._critic_optim_factory._optim_cls.__name__:
+            def closure():
+                self._critic_optim.zero_grad()
+                q_tpn = self.compute_target(batch)
+                loss = self.compute_critic_loss(batch, q_tpn)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         self._critic_optim.zero_grad()
 
@@ -302,7 +329,10 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         loss = self.compute_critic_loss(batch, q_tpn)
 
         loss.backward()
-        self._critic_optim.step()
+        #self._critic_optim.step()
+        ######## For SAM ##########
+        self._critic_optim.step(closure)
+        ###########################
 
         return loss.cpu().detach().numpy()
 
@@ -342,6 +372,16 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
     def update_actor(self, batch: TorchMiniBatch) -> np.ndarray:
         assert self._q_func is not None
         assert self._actor_optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._actor_optim_factory._optim_cls.__name__:
+            def closure():
+                self._actor_optim.zero_grad()
+                loss = self.compute_actor_loss(batch)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         # Q function should be inference mode for stability
         self._q_func.eval()
@@ -351,7 +391,10 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         loss = self.compute_actor_loss(batch)
 
         loss.backward()
-        self._actor_optim.step()
+        #self._actor_optim.step()
+        ######## For SAM ##########
+        self._actor_optim.step(closure)
+        ###########################
 
         return loss.cpu().detach().numpy()
 
@@ -372,6 +415,22 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         assert self._temp_optim is not None
         assert self._policy is not None
         assert self._log_temp is not None
+        ######## For SAM ##########
+        if 'SAM' in self._temp_optim_factory._optim_cls.__name__:
+            def closure():
+                self._temp_optim.zero_grad()
+                with torch.no_grad():
+                    log_probs = self._policy.log_probs(batch.observations)
+                    probs = log_probs.exp()
+                    expct_log_probs = (probs * log_probs).sum(dim=1, keepdim=True)
+                    entropy_target = 0.98 * (-math.log(1 / self.action_size))
+                    targ_temp = expct_log_probs + entropy_target
+                loss = -(self._log_temp().exp() * targ_temp).mean()
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         self._temp_optim.zero_grad()
 
@@ -385,7 +444,10 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         loss = -(self._log_temp().exp() * targ_temp).mean()
 
         loss.backward()
-        self._temp_optim.step()
+        #self._temp_optim.step()
+        ######## For SAM ##########
+        self._temp_optim.step(closure)
+        ###########################
 
         # current temperature value
         cur_temp = self._log_temp().exp().cpu().detach().numpy()[0][0]

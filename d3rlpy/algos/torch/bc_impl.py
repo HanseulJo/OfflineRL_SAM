@@ -89,13 +89,26 @@ class BCBaseImpl(TorchImplBase, metaclass=ABCMeta):
         self, obs_t: torch.Tensor, act_t: torch.Tensor
     ) -> np.ndarray:
         assert self._optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._optim_factory._optim_cls.__name__:
+            def closure():
+                self._optim.zero_grad()
+                loss = self.compute_loss(obs_t, act_t)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         self._optim.zero_grad()
 
         loss = self.compute_loss(obs_t, act_t)
 
         loss.backward()
-        self._optim.step()
+        #self._optim.step()
+        ######## For SAM ##########
+        self._optim.step(closure)
+        ###########################
 
         return loss.cpu().detach().numpy()
 

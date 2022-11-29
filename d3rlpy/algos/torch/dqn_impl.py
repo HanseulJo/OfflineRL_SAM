@@ -15,6 +15,7 @@ from ...preprocessing import RewardScaler, Scaler
 from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api
 from .base import TorchImplBase
 from .utility import DiscreteQFunctionMixin
+from .utility import disable_running_stats, enable_running_stats
 
 
 class DQNImpl(DiscreteQFunctionMixin, TorchImplBase):
@@ -98,6 +99,18 @@ class DQNImpl(DiscreteQFunctionMixin, TorchImplBase):
     @torch_api(scaler_targets=["obs_t", "obs_tpn"])
     def update(self, batch: TorchMiniBatch) -> np.ndarray:
         assert self._optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._optim_factory._optim_cls.__name__:
+            def closure():
+                self._optim.zero_grad()
+                q_tpn = self.compute_target(batch)
+                loss = self.compute_loss(batch, q_tpn)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
+            
 
         self._optim.zero_grad()
 
@@ -106,7 +119,10 @@ class DQNImpl(DiscreteQFunctionMixin, TorchImplBase):
         loss = self.compute_loss(batch, q_tpn)
 
         loss.backward()
-        self._optim.step()
+        #self._optim.step()
+        ######## For SAM ##########
+        self._optim.step(closure)
+        ###########################
 
         return loss.cpu().detach().numpy()
 

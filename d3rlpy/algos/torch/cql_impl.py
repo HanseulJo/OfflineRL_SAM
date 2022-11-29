@@ -122,6 +122,16 @@ class CQLImpl(SACImpl):
         assert self._alpha_optim is not None
         assert self._q_func is not None
         assert self._log_alpha is not None
+        ######## For SAM ##########
+        if 'SAM' in self._alpha_optim_factory._optim_cls.__name__:
+            def closure():
+                self._alpha_optim.zero_grad()
+                loss = -self._compute_conservative_loss(batch.observations, batch.actions, batch.next_observations)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         # Q function should be inference mode for stability
         self._q_func.eval()
@@ -134,7 +144,10 @@ class CQLImpl(SACImpl):
         )
 
         loss.backward()
-        self._alpha_optim.step()
+        #self._alpha_optim.step()
+        ######## For SAM ##########
+        self._alpha_optim.step(closure)
+        ###########################
 
         cur_alpha = self._log_alpha().exp().cpu().detach().numpy()[0][0]
 

@@ -77,7 +77,7 @@ class D3RLPyLogger:
 
         if tensorboard_dir:
             tfboard_path = os.path.join(
-                tensorboard_dir, "runs", self._experiment_name
+                tensorboard_dir, self._experiment_name
             )
             self._writer = SummaryWriter(logdir=tfboard_path)
         else:

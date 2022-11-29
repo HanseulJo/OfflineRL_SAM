@@ -148,6 +148,18 @@ class IQLImpl(DDPGBaseImpl):
     @torch_api()
     def update_critic(self, batch: TorchMiniBatch) -> np.ndarray:
         assert self._critic_optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._critic_optim_factory._optim_cls.__name__:
+            def closure():
+                q_tpn = self.compute_target(batch)
+                q_loss = self.compute_critic_loss(batch, q_tpn)
+                v_loss = self.compute_value_loss(batch)
+                loss = q_loss + v_loss
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         self._critic_optim.zero_grad()
 
@@ -161,6 +173,9 @@ class IQLImpl(DDPGBaseImpl):
         loss = q_loss + v_loss
 
         loss.backward()
-        self._critic_optim.step()
+        #self._critic_optim.step()
+        ######## For SAM ##########
+        self._critic_optim.step(closure)
+        ###########################
 
         return q_loss.cpu().detach().numpy(), v_loss.cpu().detach().numpy()

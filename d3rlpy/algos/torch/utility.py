@@ -10,6 +10,24 @@ from ...models.torch import (
 )
 from ...torch_utility import eval_api, torch_api
 
+##### For Bypassing BatchNorm in SAM #####
+##### Not implemented to the models. #####
+import torch
+from torch.nn.modules.batchnorm import _BatchNorm
+
+def disable_running_stats(model):
+    def _disable(module):
+        if isinstance(module, _BatchNorm):
+            module.backup_momentum = module.momentum
+            module.momentum = 0
+    model.apply(_disable)
+
+def enable_running_stats(model):
+    def _enable(module):
+        if isinstance(module, _BatchNorm) and hasattr(module, "backup_momentum"):
+            module.momentum = module.backup_momentum
+    model.apply(_enable)
+##########################################
 
 class _DiscreteQFunctionProtocol(Protocol):
     _q_func: Optional[EnsembleDiscreteQFunction]

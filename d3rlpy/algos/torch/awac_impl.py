@@ -13,6 +13,7 @@ from ...models.torch.policies import NonSquashedNormalPolicy
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
 from ...torch_utility import TorchMiniBatch, torch_api, train_api
 from .sac_impl import SACImpl
+from .utility import disable_running_stats, enable_running_stats
 
 
 class AWACImpl(SACImpl):
@@ -84,6 +85,16 @@ class AWACImpl(SACImpl):
         assert self._q_func is not None
         assert self._policy is not None
         assert self._actor_optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._actor_optim_factory._optim_cls.__name__:
+            def closure():
+                self._actor_optim.zero_grad()
+                loss = self.compute_actor_loss(batch)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         # Q function should be inference mode for stability
         self._q_func.eval()
@@ -93,7 +104,10 @@ class AWACImpl(SACImpl):
         loss = self.compute_actor_loss(batch)
 
         loss.backward()
-        self._actor_optim.step()
+        #self._actor_optim.step()
+        ######## For SAM ##########
+        self._actor_optim.step(closure)
+        ###########################
 
         # get current standard deviation for policy function for debug
         mean_std = self._policy.get_logstd_parameter().exp().mean()

@@ -125,13 +125,26 @@ class PLASImpl(DDPGBaseImpl):
     def update_imitator(self, batch: TorchMiniBatch) -> np.ndarray:
         assert self._imitator is not None
         assert self._imitator_optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._imitator_optim_factory._optim_cls.__name__:
+            def closure():
+                self._imitator_optim.zero_grad()
+                loss = self._imitator.compute_error(batch.observations, batch.actions)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         self._imitator_optim.zero_grad()
 
         loss = self._imitator.compute_error(batch.observations, batch.actions)
 
         loss.backward()
-        self._imitator_optim.step()
+        #self._imitator_optim.step()
+        ######## For SAM ##########
+        self._imitator_optim.step(closure)
+        ###########################
 
         return loss.cpu().detach().numpy()
 

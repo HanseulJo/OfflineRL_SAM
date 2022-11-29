@@ -176,13 +176,26 @@ class BEARImpl(SACImpl):
     @torch_api()
     def warmup_actor(self, batch: TorchMiniBatch) -> np.ndarray:
         assert self._actor_optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._actor_optim_factory._optim_cls.__name__:
+            def closure():
+                self._actor_optim.zero_grad()
+                loss = self._compute_mmd_loss(batch.observations)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         self._actor_optim.zero_grad()
 
         loss = self._compute_mmd_loss(batch.observations)
 
         loss.backward()
-        self._actor_optim.step()
+        #self._actor_optim.step()
+        ######## For SAM ##########
+        self._actor_optim.step(closure)
+        ###########################
 
         return loss.cpu().detach().numpy()
 
@@ -196,14 +209,26 @@ class BEARImpl(SACImpl):
     @torch_api()
     def update_imitator(self, batch: TorchMiniBatch) -> np.ndarray:
         assert self._imitator_optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._imitator_optim_factory._optim_cls.__name__:
+            def closure():
+                self._imitator_optim.zero_grad()
+                loss = self.compute_imitator_loss(batch)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         self._imitator_optim.zero_grad()
 
         loss = self.compute_imitator_loss(batch)
 
         loss.backward()
-
-        self._imitator_optim.step()
+        #self._imitator_optim.step()
+        ######## For SAM ##########
+        self._imitator_optim.step(closure)
+        ###########################
 
         return loss.cpu().detach().numpy()
 
@@ -216,12 +241,25 @@ class BEARImpl(SACImpl):
     def update_alpha(self, batch: TorchMiniBatch) -> np.ndarray:
         assert self._alpha_optim is not None
         assert self._log_alpha is not None
+        ######## For SAM ##########
+        if 'SAM' in self._alpha_optim_factory._optim_cls.__name__:
+            def closure():
+                loss = -self._compute_mmd_loss(batch.observations)
+                self._alpha_optim.zero_grad()
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         loss = -self._compute_mmd_loss(batch.observations)
 
         self._alpha_optim.zero_grad()
         loss.backward()
-        self._alpha_optim.step()
+        #self._alpha_optim.step()
+        ######## For SAM ##########
+        self._alpha_optim.step(closure)
+        ###########################
 
         # clip for stability
         self._log_alpha.data.clamp_(-5.0, 10.0)

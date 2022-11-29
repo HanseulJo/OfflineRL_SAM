@@ -139,6 +139,17 @@ class DDPGBaseImpl(ContinuousQFunctionMixin, TorchImplBase, metaclass=ABCMeta):
     @torch_api()
     def update_critic(self, batch: TorchMiniBatch) -> np.ndarray:
         assert self._critic_optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._critic_optim_factory._optim_cls.__name__:
+            def closure():
+                self._critic_optim.zero_grad()
+                q_tpn = self.compute_target(batch)
+                loss = self.compute_critic_loss(batch, q_tpn)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         self._critic_optim.zero_grad()
 
@@ -147,7 +158,10 @@ class DDPGBaseImpl(ContinuousQFunctionMixin, TorchImplBase, metaclass=ABCMeta):
         loss = self.compute_critic_loss(batch, q_tpn)
 
         loss.backward()
-        self._critic_optim.step()
+        #self._critic_optim.step()
+        ######## For SAM ##########
+        self._critic_optim.step(closure)
+        ###########################
 
         return loss.cpu().detach().numpy()
 
@@ -169,6 +183,16 @@ class DDPGBaseImpl(ContinuousQFunctionMixin, TorchImplBase, metaclass=ABCMeta):
     def update_actor(self, batch: TorchMiniBatch) -> np.ndarray:
         assert self._q_func is not None
         assert self._actor_optim is not None
+        ######## For SAM ##########
+        if 'SAM' in self._actor_optim_factory._optim_cls.__name__:
+            def closure():
+                self._actor_optim.zero_grad()
+                loss = self.compute_actor_loss(batch)
+                loss.backward()
+                return loss
+        else:
+            closure = None
+        ###########################
 
         # Q function should be inference mode for stability
         self._q_func.eval()
@@ -178,7 +202,10 @@ class DDPGBaseImpl(ContinuousQFunctionMixin, TorchImplBase, metaclass=ABCMeta):
         loss = self.compute_actor_loss(batch)
 
         loss.backward()
-        self._actor_optim.step()
+        #self._actor_optim.step()
+        ######## For SAM ##########
+        self._actor_optim.step(closure)
+        ###########################
 
         return loss.cpu().detach().numpy()
 
