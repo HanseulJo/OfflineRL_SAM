@@ -3,3 +3,5 @@ __pycache__/
 *.DS_store
 .DS_store
 d3rlpy_data
+d3rlpy_logs
+tensorboard
