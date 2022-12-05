@@ -43,16 +43,16 @@ if __name__ == '__main__':
     parser.add_argument('task_name')
     parser.add_argument('algorithm_name')
     parser.add_argument('optimizers', nargs='+',
-        help="for BC & Discrete*, 1 argument (optim_name).\n"\
-             "for BCQ and BEAR, 3 arguments (actor_optim_name, critic_optim_name, imitator_optim_name).\n"\
-             "otherwise, 2 argument (actor_optim_name, critic_optim_name)."
+        help="For BC & Discrete*, 1 argument (optim_name).\n"\
+             "For BCQ and BEAR, 3 arguments (actor_optim_name, critic_optim_name, imitator_optim_name).\n"\
+             "Otherwise, 2 argument (actor_optim_name, critic_optim_name)."
     )
     parser.add_argument('-b', '--batch_size', default=32, type=int)
     parser.add_argument('-e', '--n_epochs', default=None, type=int)
     parser.add_argument('-s', '--n_steps', default=None, type=int)
     parser.add_argument('-l', '--logging_num', default=100, type=int)
     parser.add_argument('-v', '--n_eval', default=500, type=int)
-    parser.add_argument('-g', '--use_gpu', action='store_true')
+    parser.add_argument('-g', '--use_gpu', default=False, type=int)
     parser.add_argument('-p', '--pretrained_path', default=None)
     parser.add_argument('-T', '--tags')
     parser.add_argument('--verbose', action='store_true')
