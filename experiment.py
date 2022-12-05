@@ -12,15 +12,6 @@ from d3rlpy.metrics import evaluate_on_environment, td_error_scorer, discounted_
 from sam import SAM
 
 
-OPT = {
-    'SGD': OptimizerFactory(optim_cls=SGD),
-    'Adam': OptimizerFactory(optim_cls=Adam),
-    'SamSGD': OptimizerFactory(optim_cls=SAM, base_optimizer="SGD", rho=0.2),
-    'SamAdam': OptimizerFactory(optim_cls=SAM, base_optimizer="Adam", rho=0.2),
-    'ASamSGD': OptimizerFactory(optim_cls=SAM, base_optimizer="SGD", rho=0.2, adaptive=True),
-    'ASamAdam': OptimizerFactory(optim_cls=SAM, base_optimizer="Adam", rho=0.2, adaptive=True)
-}
-
 ALG_OPT_PARAM = {
     'DDPG': ['actor_optim_factory', 'critic_optim_factory'],
     'SAC': ['actor_optim_factory', 'critic_optim_factory'],
@@ -32,22 +23,19 @@ ALG_OPT_PARAM = {
     'IQL': ['actor_optim_factory', 'critic_optim_factory'],
 }
 
-MISC_OPT_KWARGS = {
-    'temp_optim_factory': OPT['Adam'],
-    'alpha_optim_factory': OPT['Adam']
-}
-    
 
 if __name__ == '__main__':
+    # Argument parsing
     parser = ArgumentParser()
     parser.add_argument('task_name')
     parser.add_argument('algorithm_name')
     parser.add_argument('optimizers', nargs='+',
-        help="For BC & Discrete*, 1 argument (optim_name).\n"\
-             "For BCQ and BEAR, 3 arguments (actor_optim_name, critic_optim_name, imitator_optim_name).\n"\
-             "Otherwise, 2 argument (actor_optim_name, critic_optim_name)."
+        help="for BC & Discrete*, 1 argument (optim_name).\n"\
+             "for BCQ and BEAR, 3 arguments (actor_optim_name, critic_optim_name, imitator_optim_name).\n"\
+             "otherwise, 2 argument (actor_optim_name, critic_optim_name)."
     )
     parser.add_argument('-b', '--batch_size', default=32, type=int)
+    parser.add_argument('-r', '--rho', default=None, type=float)
     parser.add_argument('-e', '--n_epochs', default=None, type=int)
     parser.add_argument('-s', '--n_steps', default=None, type=int)
     parser.add_argument('-l', '--logging_num', default=100, type=int)
@@ -58,7 +46,7 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--show_progress', action='store_true')
     args = parser.parse_args()
-
+    
     # Load dataset & environment
     dataset, env = get_dataset(args.task_name)
     env.reset()
@@ -68,6 +56,21 @@ if __name__ == '__main__':
 
     # get algorithm type
     algorithm = getattr(d3rlpy.algos, args.algorithm_name)
+    
+    
+    # Default optimizers 
+    OPT = {
+        'SGD': OptimizerFactory(optim_cls=SGD),
+        'Adam': OptimizerFactory(optim_cls=Adam),
+        'SamSGD': OptimizerFactory(optim_cls=SAM, base_optimizer="SGD", rho=0.05 if args.rho is None else args.rho), # Foret et al. (2020)
+        'SamAdam': OptimizerFactory(optim_cls=SAM, base_optimizer="Adam", rho=0.05 if args.rho is None else args.rho), # Foret et al. (2020)
+        'ASamSGD': OptimizerFactory(optim_cls=SAM, base_optimizer="SGD", adaptive=True, rho=1.0 if args.rho is None else args.rho), # Kwon et al. (2021)
+        'ASamAdam': OptimizerFactory(optim_cls=SAM, base_optimizer="Adam", adaptive=True, rho=1.0 if args.rho is None else args.rho), # Kwon et al. (2021)
+    }
+    MISC_OPT_KWARGS = {
+        'temp_optim_factory': OPT['Adam'],
+        'alpha_optim_factory': OPT['Adam']
+    }
 
     # optimizers
     opt_zip = list(zip(ALG_OPT_PARAM.get(args.algorithm_name, ['optim_factory']), args.optimizers))
@@ -77,13 +80,9 @@ if __name__ == '__main__':
     for opt_type, opt_name in opt_zip:
         opt_string += '_' + opt_type.split('_')[0] + '_' + opt_name
     opt_string = opt_string[1:]
-    #opt_string = '_'.join(sum([[opt_type.split('_')[0], opt_name] for opt_type, opt_name in opt_zip], start=[]))
+    #opt_string = '_'.join(sum([[opt_type.split('_')[0], opt_name] for opt_type, opt_name in opt_zip], start=[]))  # only works for higher Python version
 
     experiment_name = f"{args.algorithm_name}_{opt_string}"
-    #print(args.optimizers)
-    #print(ALG_OPT_PARAM.get(args.algorithm_name, ['optim_factory']))
-    #print(list(zip(ALG_OPT_PARAM.get(args.algorithm_name, ['optim_factory']), args.optimizers)))
-    #print("experiment_name", experiment_name)
     model = algorithm(use_gpu=args.use_gpu, **opt_kwargs)
     
     if args.pretrained_path:
@@ -112,16 +111,11 @@ if __name__ == '__main__':
         tensorboard_dir=os.path.join("tensorboard", task_name_),
         verbose=args.verbose,
         show_progress=args.show_progress,
-        #save_interval=n_epochs,
+        save_interval=1,
     )
 
     if args.n_eval > 0 :
         print('\n Deployment:')
         scores=[evaluate_on_environment(env)(model) for _ in tqdm(range(args.n_eval))]
         print(f"Deployment score: Mean {np.mean(scores):.6f} std {np.std(scores):6f}")
-
-
-    
-
-    
 
