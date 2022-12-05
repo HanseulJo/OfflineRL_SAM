@@ -61,10 +61,13 @@ if __name__ == '__main__':
     # Default optimizers 
     OPT = {
         'SGD': OptimizerFactory(optim_cls=SGD),
+        'MomentumSGD': OptimizerFactory(optim_cls=SGD, momentum=0.9),
         'Adam': OptimizerFactory(optim_cls=Adam),
         'SamSGD': OptimizerFactory(optim_cls=SAM, base_optimizer="SGD", rho=0.05 if args.rho is None else args.rho), # Foret et al. (2020)
+        'SamMomentumSGD': OptimizerFactory(optim_cls=SAM, base_optimizer="SGD", momentum=0.9, rho=0.05 if args.rho is None else args.rho), # Foret et al. (2020)
         'SamAdam': OptimizerFactory(optim_cls=SAM, base_optimizer="Adam", rho=0.05 if args.rho is None else args.rho), # Foret et al. (2020)
         'ASamSGD': OptimizerFactory(optim_cls=SAM, base_optimizer="SGD", adaptive=True, rho=1.0 if args.rho is None else args.rho), # Kwon et al. (2021)
+        'ASamMomentumSGD': OptimizerFactory(optim_cls=SAM, base_optimizer="SGD", momentum=0.9, adaptive=True, rho=1.0 if args.rho is None else args.rho), # Kwon et al. (2021)
         'ASamAdam': OptimizerFactory(optim_cls=SAM, base_optimizer="Adam", adaptive=True, rho=1.0 if args.rho is None else args.rho), # Kwon et al. (2021)
     }
     MISC_OPT_KWARGS = {
