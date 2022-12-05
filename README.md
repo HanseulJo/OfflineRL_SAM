@@ -5,8 +5,8 @@ AI611 final project
 
 ```bash
 python experiment.py pendulum-random BC ASamAdam --tag my_tag --n_steps 10000 --logging_num 100 --n_eval 100 --verbose --show_progress  # one optimizer
-python experiment.py hopper-medium-v0 CQL Adam ASamAdam --tag 123 --n_steps 100000 --logging_num 10 --n_eval 100 --verbose --show_progress --use_gpu  # two optimizers
-python experiment.py hopper-medium-v0 BCQ Adam SamAdam ASamAdam --tag custom_tag --n_steps 100000 --logging_num 10 --n_eval 100 --verbose --show_progress --use_gpu  # three optimizers
+python experiment.py hopper-medium-v0 CQL Adam ASamAdam --tag 123 --n_steps 100000 --logging_num 10 --n_eval 100 --verbose --show_progress --use_gpu 0  # two optimizers
+python experiment.py hopper-medium-v0 BCQ Adam SamAdam ASamAdam --tag custom_tag --n_steps 100000 --logging_num 10 --n_eval 100 --verbose --show_progress --use_gpu 0  # three optimizers
 ```
 
 ```bash
