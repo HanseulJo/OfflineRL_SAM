@@ -156,7 +156,7 @@ class IQLImpl(DDPGBaseImpl):
                 v_loss = self.compute_value_loss(batch)
                 loss = q_loss + v_loss
                 loss.backward()
-                return loss
+                return q_loss, v_loss
         else:
             closure = None
         ###########################
@@ -175,7 +175,13 @@ class IQLImpl(DDPGBaseImpl):
         loss.backward()
         #self._critic_optim.step()
         ######## For SAM ##########
-        self._critic_optim.step(closure)
+        losses_sam = self._critic_optim.step(closure)
+        if losses_sam is not None:
+            q_loss_sam, v_loss_sam = losses_sam
+            q_loss_sam, v_loss_sam = q_loss_sam.cpu().detach().numpy(), v_loss_sam.cpu().detach().numpy()
+            q_loss_sharpness = q_loss_sam - q_loss.cpu().detach().numpy()
+            v_loss_sharpness = q_loss_sam - q_loss.cpu().detach().numpy()
+            return q_loss.cpu().detach().numpy(), v_loss.cpu().detach().numpy(), q_loss_sharpness, v_loss_sharpness # sharpness added!
         ###########################
 
         return q_loss.cpu().detach().numpy(), v_loss.cpu().detach().numpy()

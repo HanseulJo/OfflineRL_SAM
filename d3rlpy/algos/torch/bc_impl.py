@@ -107,7 +107,10 @@ class BCBaseImpl(TorchImplBase, metaclass=ABCMeta):
         loss.backward()
         #self._optim.step()
         ######## For SAM ##########
-        self._optim.step(closure)
+        loss_sam = self._optim.step(closure)
+        if loss_sam is not None:
+            loss_sharpness = loss_sam.cpu().detach().numpy() - loss.cpu().detach().numpy()
+            return loss.cpu().detach().numpy(), loss_sharpness  # sharpness added!
         ###########################
 
         return loss.cpu().detach().numpy()
@@ -126,6 +129,7 @@ class BCBaseImpl(TorchImplBase, metaclass=ABCMeta):
         self, x: np.ndarray, action: np.ndarray, with_std: bool
     ) -> np.ndarray:
         raise NotImplementedError("BC does not support value estimation")
+
 
 
 class BCImpl(BCBaseImpl):

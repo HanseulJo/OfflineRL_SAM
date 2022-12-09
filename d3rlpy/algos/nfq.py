@@ -127,8 +127,14 @@ class NFQ(AlgoBase):
     def _update(self, batch: TransitionMiniBatch) -> Dict[str, float]:
         assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
         loss = self._impl.update(batch)
+        ######## For SAM ##########
+        if isinstance(loss, tuple):
+            loss, sharpness = loss
+            metrics = {"loss": float(loss), "sharpness": float(sharpness)}
+        else: metrics = {"loss": float(loss)}
+        ###########################
         self._impl.update_target()
-        return {"loss": float(loss)}
+        return metrics # For SAM  # originally {"loss": float(loss)}
 
     def get_action_type(self) -> ActionSpace:
         return ActionSpace.DISCRETE

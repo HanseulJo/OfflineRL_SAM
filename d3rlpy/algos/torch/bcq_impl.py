@@ -168,7 +168,10 @@ class BCQImpl(DDPGBaseImpl):
         loss.backward()
         #self._imitator_optim.step()
         ######## For SAM ##########
-        self._imitator_optim.step(closure)
+        loss_sam = self._imitator_optim.step(closure)
+        if loss_sam is not None:
+            loss_sharpness = loss_sam.cpu().detach().numpy() - loss.cpu().detach().numpy()
+            return loss.cpu().detach().numpy(), loss_sharpness  # sharpness added!
         ###########################
 
         return loss.cpu().detach().numpy()

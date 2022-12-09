@@ -127,9 +127,16 @@ class DQN(AlgoBase):
     def _update(self, batch: TransitionMiniBatch) -> Dict[str, float]:
         assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
         loss = self._impl.update(batch)
+        ######## For SAM ##########
+        if isinstance(loss, tuple):
+            loss, sharpness = loss
+            metrics = {"loss":loss, "sharpness":sharpness}
+        else: metrics = {"loss": loss}
+        ###########################
         if self._grad_step % self._target_update_interval == 0:
             self._impl.update_target()
-        return {"loss": loss}
+        
+        return metrics # For SAM  # originally: {"loss": loss}
 
     def get_action_type(self) -> ActionSpace:
         return ActionSpace.DISCRETE

@@ -58,6 +58,11 @@ class _BCBase(AlgoBase):
     def _update(self, batch: TransitionMiniBatch) -> Dict[str, float]:
         assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
         loss = self._impl.update_imitator(batch.observations, batch.actions)
+        ######## For SAM ##########
+        if isinstance(loss, tuple):
+            loss, sharpness = loss
+            return {"loss":loss, "sharpness":sharpness}
+        ###########################
         return {"loss": loss}
 
     def predict_value(

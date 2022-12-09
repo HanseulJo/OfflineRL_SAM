@@ -188,11 +188,23 @@ class IQL(AlgoBase):
 
         metrics = {}
 
-        critic_loss, value_loss = self._impl.update_critic(batch)
-        metrics.update({"critic_loss": critic_loss, "value_loss": value_loss})
+        #critic_loss, value_loss = self._impl.update_critic(batch)
+        #metrics.update({"critic_loss": critic_loss, "value_loss": value_loss})
+        ######## For SAM ##########
+        losses = self._impl.update_critic(batch)
+        metrics.update({"critic_loss": losses[0], "value_loss": losses[1]})
+        if len(losses) > 2:
+            metrics.update({"critic_sharpness": losses[2], "value_sharpness": losses[3]})
+        ###########################
 
         actor_loss = self._impl.update_actor(batch)
-        metrics.update({"actor_loss": actor_loss})
+        #metrics.update({"actor_loss": actor_loss})
+        ######## For SAM ##########
+        if isinstance(actor_loss, tuple):
+            actor_loss, actor_sharpness = actor_loss
+            metrics.update({"actor_loss":actor_loss, "actor_sharpness":actor_sharpness})
+        else: metrics.update({"actor_loss": actor_loss})
+        ###########################
 
         self._impl.update_critic_target()
 

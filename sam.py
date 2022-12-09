@@ -74,8 +74,9 @@ class SAM(torch.optim.Optimizer):
         closure = torch.enable_grad()(closure)  # the closure should do a full forward-backward pass
 
         self.first_step(zero_grad=True)
-        closure()
-        self.second_step()
+        loss = closure()
+        self.second_step() 
+        return loss  # return L_B(w+eps).
 
     def _grad_norm(self):
         shared_device = self.param_groups[0]["params"][0].device  # put everything on the same device, in case of model parallelism

@@ -226,8 +226,20 @@ class CRR(AlgoBase):
     def _update(self, batch: TransitionMiniBatch) -> Dict[str, float]:
         assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
 
+        metrics = {}  # For SAM
+
         critic_loss = self._impl.update_critic(batch)
         actor_loss = self._impl.update_actor(batch)
+        ######## For SAM ##########
+        if isinstance(critic_loss, tuple):
+            critic_loss, critic_sharpness = critic_loss
+            metrics.update({"critic_loss":critic_loss, "critic_sharpness":critic_sharpness})
+        else: metrics.update({"critic_loss": critic_loss})
+        if isinstance(actor_loss, tuple):
+            actor_loss, actor_sharpness = actor_loss
+            metrics.update({"actor_loss":actor_loss, "actor_sharpness":actor_sharpness})
+        else: metrics.update({"actor_loss": actor_loss})
+        ###########################
 
         if self._target_update_type == "hard":
             if self._grad_step % self._target_update_interval == 0:
@@ -241,7 +253,7 @@ class CRR(AlgoBase):
                 f"invalid target_update_type: {self._target_update_type}"
             )
 
-        return {"critic_loss": critic_loss, "actor_loss": actor_loss}
+        return metrics # For SAM  # originally: {"critic_loss": critic_loss, "actor_loss": actor_loss}
 
     def get_action_type(self) -> ActionSpace:
         return ActionSpace.CONTINUOUS

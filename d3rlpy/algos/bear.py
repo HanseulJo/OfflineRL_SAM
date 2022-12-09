@@ -282,7 +282,13 @@ class BEAR(AlgoBase):
         metrics = {}
 
         imitator_loss = self._impl.update_imitator(batch)
-        metrics.update({"imitator_loss": imitator_loss})
+        #metrics.update({"imitator_loss": imitator_loss})
+        ######## For SAM ##########
+        if isinstance(imitator_loss, tuple):
+            imitator_loss, imitator_sharpness = imitator_loss
+            metrics.update({"imitator_loss":imitator_loss, "imitator_sharpness":imitator_sharpness})
+        else: metrics.update({"imitator_loss": imitator_loss})
+        ###########################
 
         # lagrangian parameter update for SAC temperature
         if self._temp_learning_rate > 0:
@@ -295,13 +301,26 @@ class BEAR(AlgoBase):
             metrics.update({"alpha_loss": alpha_loss, "alpha": alpha})
 
         critic_loss = self._impl.update_critic(batch)
-        metrics.update({"critic_loss": critic_loss})
+        #metrics.update({"critic_loss": critic_loss})
+        ######## For SAM ##########
+        if isinstance(critic_loss, tuple):
+            critic_loss, critic_sharpness = critic_loss
+            metrics.update({"critic_loss":critic_loss, "critic_sharpness":critic_sharpness})
+        else: metrics.update({"critic_loss": critic_loss})
+        ###########################
 
         if self._grad_step < self._warmup_steps:
             actor_loss = self._impl.warmup_actor(batch)
+            metrics.update({"actor_loss": actor_loss}) # For SAM
         else:
             actor_loss = self._impl.update_actor(batch)
-        metrics.update({"actor_loss": actor_loss})
+            #metrics.update({"actor_loss": actor_loss})
+            ######## For SAM ##########
+            if isinstance(actor_loss, tuple):
+                actor_loss, actor_sharpness = actor_loss
+                metrics.update({"actor_loss":actor_loss, "actor_sharpness":actor_sharpness})
+            else: metrics.update({"actor_loss": actor_loss})
+            ###########################
 
         self._impl.update_actor_target()
         self._impl.update_critic_target()

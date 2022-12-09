@@ -6,3 +6,7 @@ d3rlpy_data
 d3rlpy_logs
 tensorboard
 .ipynb_checkpoints/
+changes/
+sam copy.py
+runner.py
+logs/

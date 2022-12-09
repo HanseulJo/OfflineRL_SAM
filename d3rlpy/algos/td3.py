@@ -185,12 +185,24 @@ class TD3(AlgoBase):
         metrics = {}
 
         critic_loss = self._impl.update_critic(batch)
-        metrics.update({"critic_loss": critic_loss})
+        # metrics.update({"critic_loss": critic_loss})
+        ######## For SAM ##########
+        if isinstance(critic_loss, tuple):
+            critic_loss, critic_sharpness = critic_loss
+            metrics.update({"critic_loss":critic_loss, "critic_sharpness":critic_sharpness})
+        else: metrics.update({"critic_loss": critic_loss})
+        ###########################
 
         # delayed policy update
         if self._grad_step % self._update_actor_interval == 0:
             actor_loss = self._impl.update_actor(batch)
-            metrics.update({"actor_loss": actor_loss})
+            #metrics.update({"actor_loss": actor_loss})
+            ######## For SAM ##########
+            if isinstance(actor_loss, tuple):
+                actor_loss, actor_sharpness = actor_loss
+                metrics.update({"actor_loss":actor_loss, "actor_sharpness":actor_sharpness})
+            else: metrics.update({"actor_loss": actor_loss})
+            ###########################
             self._impl.update_critic_target()
             self._impl.update_actor_target()
 

@@ -106,12 +106,16 @@ class AWACImpl(SACImpl):
         loss.backward()
         #self._actor_optim.step()
         ######## For SAM ##########
-        self._actor_optim.step(closure)
+        loss_sam = self._actor_optim.step(closure)
+        if loss_sam is not None:
+            loss_sharpness = loss_sam.cpu().detach().numpy() - loss.cpu().detach().numpy()
         ###########################
 
         # get current standard deviation for policy function for debug
         mean_std = self._policy.get_logstd_parameter().exp().mean()
 
+        if loss_sam is not None:
+            return loss.cpu().detach().numpy(), mean_std.cpu().detach().numpy(), loss_sharpness  # sharpness added!
         return loss.cpu().detach().numpy(), mean_std.cpu().detach().numpy()
 
     def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:

@@ -160,7 +160,10 @@ class DDPGBaseImpl(ContinuousQFunctionMixin, TorchImplBase, metaclass=ABCMeta):
         loss.backward()
         #self._critic_optim.step()
         ######## For SAM ##########
-        self._critic_optim.step(closure)
+        loss_sam = self._critic_optim.step(closure)
+        if loss_sam is not None:
+            loss_sharpness = loss_sam.cpu().detach().numpy() - loss.cpu().detach().numpy()
+            return loss.cpu().detach().numpy(), loss_sharpness  # sharpness added!
         ###########################
 
         return loss.cpu().detach().numpy()
@@ -204,7 +207,10 @@ class DDPGBaseImpl(ContinuousQFunctionMixin, TorchImplBase, metaclass=ABCMeta):
         loss.backward()
         #self._actor_optim.step()
         ######## For SAM ##########
-        self._actor_optim.step(closure)
+        loss_sam = self._actor_optim.step(closure)
+        if loss_sam is not None:
+            loss_sharpness = loss_sam.cpu().detach().numpy() - loss.cpu().detach().numpy()
+            return loss.cpu().detach().numpy(), loss_sharpness  # sharpness added!
         ###########################
 
         return loss.cpu().detach().numpy()
