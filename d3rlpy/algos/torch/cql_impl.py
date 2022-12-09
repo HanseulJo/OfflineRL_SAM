@@ -107,10 +107,10 @@ class CQLImpl(SACImpl):
             self._log_alpha.parameters(), lr=self._alpha_learning_rate
         )
 
-    def compute_critic_loss(
+    def _compute_critic_loss(
         self, batch: TorchMiniBatch, q_tpn: torch.Tensor
     ) -> torch.Tensor:
-        loss = super().compute_critic_loss(batch, q_tpn)
+        loss = super()._compute_critic_loss(batch, q_tpn)
         conservative_loss = self._compute_conservative_loss(
             batch.observations, batch.actions, batch.next_observations
         )
@@ -289,12 +289,12 @@ class DiscreteCQLImpl(DoubleDQNImpl):
         )
         self._alpha = alpha
 
-    def compute_loss(
+    def _compute_critic_loss(
         self,
         batch: TorchMiniBatch,
         q_tpn: torch.Tensor,
     ) -> torch.Tensor:
-        loss = super().compute_loss(batch, q_tpn)
+        loss = super()._compute_critic_loss(batch, q_tpn)
         conservative_loss = self._compute_conservative_loss(
             batch.observations, batch.actions.long()
         )

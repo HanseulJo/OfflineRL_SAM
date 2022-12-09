@@ -11,7 +11,7 @@ from ...models.optimizers import AdamFactory, OptimizerFactory
 from ...models.q_functions import QFunctionFactory
 from ...models.torch.policies import NonSquashedNormalPolicy
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
-from ...torch_utility import TorchMiniBatch, torch_api, train_api
+from ...torch_utility import TorchMiniBatch, torch_api, train_api, l2_regularized_loss
 from .sac_impl import SACImpl
 from .utility import disable_running_stats, enable_running_stats
 
@@ -118,7 +118,7 @@ class AWACImpl(SACImpl):
             return loss.cpu().detach().numpy(), mean_std.cpu().detach().numpy(), loss_sharpness  # sharpness added!
         return loss.cpu().detach().numpy(), mean_std.cpu().detach().numpy()
 
-    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._policy is not None
 
         # compute log probability
@@ -127,8 +127,10 @@ class AWACImpl(SACImpl):
 
         # compute exponential weight
         weights = self._compute_weights(batch.observations, batch.actions)
-
-        return -(log_probs * weights).sum()
+        loss = -(log_probs * weights).sum()
+        if l2_reg:
+            return l2_regularized_loss(loss, self._policy, self._actor_optim)
+        return loss
 
     def _compute_weights(
         self, obs_t: torch.Tensor, act_t: torch.Tensor

@@ -10,7 +10,7 @@ from ...models.optimizers import OptimizerFactory
 from ...models.q_functions import QFunctionFactory
 from ...models.torch import NonSquashedNormalPolicy
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
-from ...torch_utility import TorchMiniBatch, hard_sync
+from ...torch_utility import TorchMiniBatch, hard_sync, l2_regularized_loss
 from .ddpg_impl import DDPGBaseImpl
 
 
@@ -79,7 +79,7 @@ class CRRImpl(DDPGBaseImpl):
             self._actor_encoder_factory,
         )
 
-    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._policy is not None
 
         # compute log probability
@@ -87,8 +87,10 @@ class CRRImpl(DDPGBaseImpl):
         log_probs = dist.log_prob(batch.actions)
 
         weight = self._compute_weight(batch.observations, batch.actions)
-
-        return -(log_probs * weight).mean()
+        loss = -(log_probs * weight).mean()
+        if l2_reg:
+            return l2_regularized_loss(loss, self._policy, self._actor_optim)
+        return loss
 
     def _compute_weight(
         self, obs_t: torch.Tensor, act_t: torch.Tensor

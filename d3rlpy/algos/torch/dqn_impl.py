@@ -12,7 +12,7 @@ from ...models.optimizers import OptimizerFactory
 from ...models.q_functions import QFunctionFactory
 from ...models.torch import EnsembleDiscreteQFunction, EnsembleQFunction
 from ...preprocessing import RewardScaler, Scaler
-from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api
+from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api, l2_regularized_loss
 from .base import TorchImplBase
 from .utility import DiscreteQFunctionMixin
 from .utility import disable_running_stats, enable_running_stats
@@ -103,8 +103,9 @@ class DQNImpl(DiscreteQFunctionMixin, TorchImplBase):
         if 'SAM' in self._optim_factory._optim_cls.__name__:
             def closure():
                 self._optim.zero_grad()
-                q_tpn = self.compute_target(batch)
-                loss = self.compute_loss(batch, q_tpn)
+                #q_tpn = self.compute_target(batch)
+                #loss = self._compute_critic_loss(batch, q_tpn)
+                loss = self.compute_critic_loss(batch)
                 loss.backward()
                 return loss
         else:
@@ -113,9 +114,9 @@ class DQNImpl(DiscreteQFunctionMixin, TorchImplBase):
 
         self._optim.zero_grad()
 
-        q_tpn = self.compute_target(batch)
-
-        loss = self.compute_loss(batch, q_tpn)
+        #q_tpn = self.compute_target(batch)
+        #loss = self._compute_critic_loss(batch, q_tpn)
+        loss = self.compute_critic_loss(batch)
 
         loss.backward()
         #self._optim.step()
@@ -128,7 +129,14 @@ class DQNImpl(DiscreteQFunctionMixin, TorchImplBase):
 
         return loss.cpu().detach().numpy()
 
-    def compute_loss(
+    def compute_critic_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
+        q_tpn = self.compute_target(batch)
+        loss = self._compute_critic_loss(batch, q_tpn)
+        if l2_reg:
+            return l2_regularized_loss(loss, self._q_func, self._optim)
+        return loss
+
+    def _compute_critic_loss(
         self,
         batch: TorchMiniBatch,
         q_tpn: torch.Tensor,

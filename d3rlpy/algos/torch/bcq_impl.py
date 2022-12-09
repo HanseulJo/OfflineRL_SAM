@@ -22,7 +22,7 @@ from ...models.torch import (
     compute_max_with_n_actions,
 )
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
-from ...torch_utility import TorchMiniBatch, torch_api, train_api
+from ...torch_utility import TorchMiniBatch, torch_api, train_api, l2_regularized_loss
 from .ddpg_impl import DDPGBaseImpl
 from .dqn_impl import DoubleDQNImpl
 
@@ -93,7 +93,7 @@ class BCQImpl(DDPGBaseImpl):
         self._n_action_samples = n_action_samples
         self._action_flexibility = action_flexibility
         self._beta = beta
-
+        
         # initialized in build
         self._imitator = None
         self._imitator_optim = None
@@ -129,7 +129,7 @@ class BCQImpl(DDPGBaseImpl):
             self._imitator.parameters(), lr=self._imitator_learning_rate
         )
 
-    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._imitator is not None
         assert self._policy is not None
         assert self._q_func is not None
@@ -143,7 +143,10 @@ class BCQImpl(DDPGBaseImpl):
             batch.observations, clipped_latent
         )
         action = self._policy(batch.observations, sampled_action)
-        return -self._q_func(batch.observations, action, "none")[0].mean()
+        loss = -self._q_func(batch.observations, action, "none")[0].mean()
+        if l2_reg:
+            return l2_regularized_loss(loss, self._policy, self._actor_optim)
+        return loss
 
     @train_api
     @torch_api()
@@ -154,7 +157,8 @@ class BCQImpl(DDPGBaseImpl):
         if 'SAM' in self._imitator_optim_factory._optim_cls.__name__:
             def closure():
                 self._imitator_optim.zero_grad()
-                loss = self._imitator.compute_error(batch.observations, batch.actions)
+                #loss = self._imitator.compute_error(batch.observations, batch.actions)
+                loss = self.compute_imitator_loss(batch)
                 loss.backward()
                 return loss
         else:
@@ -163,7 +167,8 @@ class BCQImpl(DDPGBaseImpl):
 
         self._imitator_optim.zero_grad()
 
-        loss = self._imitator.compute_error(batch.observations, batch.actions)
+        #loss = self._imitator.compute_error(batch.observations, batch.actions)
+        loss = self.compute_imitator_loss(batch)
 
         loss.backward()
         #self._imitator_optim.step()
@@ -175,6 +180,13 @@ class BCQImpl(DDPGBaseImpl):
         ###########################
 
         return loss.cpu().detach().numpy()
+    
+    def compute_imitator_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] =False) -> torch.Tensor:
+        assert self._imitator is not None
+        loss = self._imitator.compute_error(batch.observations, batch.actions)
+        if l2_reg:
+            return l2_regularized_loss(loss, self._imitator, self._imitator_optim)
+        return loss
 
     def _repeat_observation(self, x: torch.Tensor) -> torch.Tensor:
         # (batch_size, *obs_shape) -> (batch_size, n, *obs_shape)
@@ -316,11 +328,11 @@ class DiscreteBCQImpl(DoubleDQNImpl):
             unique_params, lr=self._learning_rate
         )
 
-    def compute_loss(
+    def _compute_critic_loss(
         self, batch: TorchMiniBatch, q_tpn: torch.Tensor
     ) -> torch.Tensor:
         assert self._imitator is not None
-        loss = super().compute_loss(batch, q_tpn)
+        loss = super()._compute_critic_loss(batch, q_tpn)
         imitator_loss = self._imitator.compute_error(
             batch.observations, batch.actions.long()
         )

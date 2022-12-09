@@ -20,7 +20,7 @@ from ...models.torch import (
     DeterministicResidualPolicy,
 )
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
-from ...torch_utility import TorchMiniBatch, soft_sync, torch_api, train_api
+from ...torch_utility import TorchMiniBatch, soft_sync, torch_api, train_api, l2_regularized_loss
 from .ddpg_impl import DDPGBaseImpl
 
 
@@ -151,13 +151,16 @@ class PLASImpl(DDPGBaseImpl):
 
         return loss.cpu().detach().numpy()
 
-    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._imitator is not None
         assert self._policy is not None
         assert self._q_func is not None
         latent_actions = 2.0 * self._policy(batch.observations)
         actions = self._imitator.decode(batch.observations, latent_actions)
-        return -self._q_func(batch.observations, actions, "none")[0].mean()
+        loss = -self._q_func(batch.observations, actions, "none")[0].mean()
+        if l2_reg:
+            return l2_regularized_loss(loss, self._policy, self._actor_optim)
+        return loss
 
     def _predict_best_action(self, x: torch.Tensor) -> torch.Tensor:
         assert self._imitator is not None
@@ -266,7 +269,7 @@ class PLASWithPerturbationImpl(PLASImpl):
             params=parameters, lr=self._actor_learning_rate
         )
 
-    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._imitator is not None
         assert self._policy is not None
         assert self._perturbation is not None
@@ -275,7 +278,10 @@ class PLASWithPerturbationImpl(PLASImpl):
         actions = self._imitator.decode(batch.observations, latent_actions)
         residual_actions = self._perturbation(batch.observations, actions)
         q_value = self._q_func(batch.observations, residual_actions, "none")
-        return -q_value[0].mean()
+        loss = -q_value[0].mean()
+        if l2_reg:
+            return l2_regularized_loss(loss, self._policy, self._actor_optim)
+        return loss
 
     def _predict_best_action(self, x: torch.Tensor) -> torch.Tensor:
         assert self._imitator is not None

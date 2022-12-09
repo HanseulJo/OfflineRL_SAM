@@ -16,7 +16,7 @@ from ...models.torch import (
     compute_max_with_n_actions_and_indices,
 )
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
-from ...torch_utility import TorchMiniBatch, torch_api, train_api
+from ...torch_utility import TorchMiniBatch, torch_api, train_api, l2_regularized_loss
 from .sac_impl import SACImpl
 
 
@@ -167,9 +167,11 @@ class BEARImpl(SACImpl):
             self._log_alpha.parameters(), lr=self._alpha_learning_rate
         )
 
-    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         loss = super().compute_actor_loss(batch)
         mmd_loss = self._compute_mmd_loss(batch.observations)
+        if l2_reg:
+            return l2_regularized_loss(loss+mmd_loss, self._policy, self._actor_optim)
         return loss + mmd_loss
 
     @train_api
@@ -238,9 +240,12 @@ class BEARImpl(SACImpl):
 
         return loss.cpu().detach().numpy()
 
-    def compute_imitator_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_imitator_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._imitator is not None
-        return self._imitator.compute_error(batch.observations, batch.actions)
+        loss = self._imitator.compute_error(batch.observations, batch.actions)
+        if l2_reg:
+            return l2_regularized_loss(loss, self._imitator, self._imitator_optim)
+        return loss
 
     @train_api
     @torch_api()

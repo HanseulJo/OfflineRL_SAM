@@ -25,7 +25,7 @@ from ...models.torch import (
     SquashedNormalPolicy,
 )
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
-from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api
+from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api, l2_regularized_loss
 from .base import TorchImplBase
 from .ddpg_impl import DDPGBaseImpl
 from .utility import DiscreteQFunctionMixin
@@ -111,14 +111,17 @@ class SACImpl(DDPGBaseImpl):
             self._log_temp.parameters(), lr=self._temp_learning_rate
         )
 
-    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._policy is not None
         assert self._log_temp is not None
         assert self._q_func is not None
         action, log_prob = self._policy.sample_with_log_prob(batch.observations)
         entropy = self._log_temp().exp() * log_prob
         q_t = self._q_func(batch.observations, action, "min")
-        return (entropy - q_t).mean()
+        loss = (entropy - q_t).mean()
+        if l2_reg:
+            return l2_regularized_loss(loss, self._policy, self._actor_optim)
+        return loss
 
     @train_api
     @torch_api()
@@ -315,8 +318,9 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         if 'SAM' in self._critic_optim_factory._optim_cls.__name__:
             def closure():
                 self._critic_optim.zero_grad()
-                q_tpn = self.compute_target(batch)
-                loss = self.compute_critic_loss(batch, q_tpn)
+                #q_tpn = self.compute_target(batch)
+                #loss = self._compute_critic_loss(batch, q_tpn)
+                loss = self.compute_critic_loss(batch)
                 loss.backward()
                 return loss
         else:
@@ -325,9 +329,9 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
 
         self._critic_optim.zero_grad()
 
-        q_tpn = self.compute_target(batch)
-        loss = self.compute_critic_loss(batch, q_tpn)
-
+        #q_tpn = self.compute_target(batch)
+        #loss = self._compute_critic_loss(batch, q_tpn)
+        loss = self.compute_critic_loss(batch)
         loss.backward()
         #self._critic_optim.step()
         ######## For SAM ##########
@@ -355,7 +359,7 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
                 keepdims = False
             return (probs * (target - entropy)).sum(dim=1, keepdim=keepdims)
 
-    def compute_critic_loss(
+    def _compute_critic_loss(
         self,
         batch: TorchMiniBatch,
         q_tpn: torch.Tensor,
@@ -369,6 +373,13 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
             terminals=batch.terminals,
             gamma=self._gamma**batch.n_steps,
         )
+
+    def compute_critic_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
+        q_tpn = self.compute_target(batch)
+        loss = self._compute_critic_loss(batch, q_tpn)
+        if l2_reg:
+            return l2_regularized_loss(loss, self._q_func, self._critic_optim)
+        return loss
 
     @train_api
     @torch_api()
@@ -404,7 +415,7 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
 
         return loss.cpu().detach().numpy()
 
-    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._q_func is not None
         assert self._policy is not None
         assert self._log_temp is not None
@@ -413,7 +424,10 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         log_probs = self._policy.log_probs(batch.observations)
         probs = log_probs.exp()
         entropy = self._log_temp().exp() * log_probs
-        return (probs * (entropy - q_t)).sum(dim=1).mean()
+        loss = (probs * (entropy - q_t)).sum(dim=1).mean()
+        if l2_reg:
+            return l2_regularized_loss(loss, self._policy, self._actor_optim)
+        return loss
 
     @train_api
     @torch_api()

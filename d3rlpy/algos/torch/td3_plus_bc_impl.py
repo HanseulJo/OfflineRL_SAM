@@ -9,7 +9,7 @@ from ...models.encoders import EncoderFactory
 from ...models.optimizers import OptimizerFactory
 from ...models.q_functions import QFunctionFactory
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
-from ...torch_utility import TorchMiniBatch
+from ...torch_utility import TorchMiniBatch, l2_regularized_loss
 from .td3_impl import TD3Impl
 
 
@@ -61,10 +61,13 @@ class TD3PlusBCImpl(TD3Impl):
         )
         self._alpha = alpha
 
-    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._policy is not None
         assert self._q_func is not None
         action = self._policy(batch.observations)
         q_t = self._q_func(batch.observations, action, "none")[0]
         lam = self._alpha / (q_t.abs().mean()).detach()
-        return lam * -q_t.mean() + ((batch.actions - action) ** 2).mean()
+        loss = lam * -q_t.mean() + ((batch.actions - action) ** 2).mean()
+        if l2_reg:
+            return l2_regularized_loss(loss, self._policy, self._actor_optim)
+        return loss

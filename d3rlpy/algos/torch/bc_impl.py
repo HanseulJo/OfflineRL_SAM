@@ -23,7 +23,7 @@ from ...models.torch import (
     ProbablisticRegressor,
 )
 from ...preprocessing import ActionScaler, Scaler
-from ...torch_utility import hard_sync, torch_api, train_api
+from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api, l2_regularized_loss
 from .base import TorchImplBase
 
 
@@ -86,14 +86,14 @@ class BCBaseImpl(TorchImplBase, metaclass=ABCMeta):
     @train_api
     @torch_api(scaler_targets=["obs_t"], action_scaler_targets=["act_t"])
     def update_imitator(
-        self, obs_t: torch.Tensor, act_t: torch.Tensor
+        self, batch: TorchMiniBatch
     ) -> np.ndarray:
         assert self._optim is not None
         ######## For SAM ##########
         if 'SAM' in self._optim_factory._optim_cls.__name__:
             def closure():
                 self._optim.zero_grad()
-                loss = self.compute_loss(obs_t, act_t)
+                loss = self.compute_imitator_loss(batch)
                 loss.backward()
                 return loss
         else:
@@ -102,7 +102,7 @@ class BCBaseImpl(TorchImplBase, metaclass=ABCMeta):
 
         self._optim.zero_grad()
 
-        loss = self.compute_loss(obs_t, act_t)
+        loss = self.compute_imitator_loss(batch)
 
         loss.backward()
         #self._optim.step()
@@ -115,11 +115,14 @@ class BCBaseImpl(TorchImplBase, metaclass=ABCMeta):
 
         return loss.cpu().detach().numpy()
 
-    def compute_loss(
-        self, obs_t: torch.Tensor, act_t: torch.Tensor
+    def compute_imitator_loss(
+        self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False,
     ) -> torch.Tensor:
         assert self._imitator is not None
-        return self._imitator.compute_error(obs_t, act_t)
+        loss = self._imitator.compute_error(batch.observations, batch.actions)
+        if l2_reg:
+            return l2_regularized_loss(loss, self._imitator, self._optim)
+        return loss
 
     def _predict_best_action(self, x: torch.Tensor) -> torch.Tensor:
         assert self._imitator is not None
@@ -252,8 +255,8 @@ class DiscreteBCImpl(BCBaseImpl):
         assert self._imitator is not None
         return self._imitator(x).argmax(dim=1)
 
-    def compute_loss(
-        self, obs_t: torch.Tensor, act_t: torch.Tensor
+    def compute_imitator_loss(
+        self, batch: TorchMiniBatch
     ) -> torch.Tensor:
         assert self._imitator is not None
-        return self._imitator.compute_error(obs_t, act_t.long())
+        return self._imitator.compute_error(batch.observations, batch.actions.long())

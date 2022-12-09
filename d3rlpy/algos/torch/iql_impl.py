@@ -96,7 +96,7 @@ class IQLImpl(DDPGBaseImpl):
             q_func_params + v_func_params, lr=self._critic_learning_rate
         )
 
-    def compute_critic_loss(
+    def _compute_critic_loss(
         self, batch: TorchMiniBatch, q_tpn: torch.Tensor
     ) -> torch.Tensor:
         assert self._q_func is not None
@@ -152,7 +152,7 @@ class IQLImpl(DDPGBaseImpl):
         if 'SAM' in self._critic_optim_factory._optim_cls.__name__:
             def closure():
                 q_tpn = self.compute_target(batch)
-                q_loss = self.compute_critic_loss(batch, q_tpn)
+                q_loss = self._compute_critic_loss(batch, q_tpn)
                 v_loss = self.compute_value_loss(batch)
                 loss = q_loss + v_loss
                 loss.backward()
@@ -165,7 +165,7 @@ class IQLImpl(DDPGBaseImpl):
 
         # compute Q-function loss
         q_tpn = self.compute_target(batch)
-        q_loss = self.compute_critic_loss(batch, q_tpn)
+        q_loss = self._compute_critic_loss(batch, q_tpn)
 
         # compute value function loss
         v_loss = self.compute_value_loss(batch)
