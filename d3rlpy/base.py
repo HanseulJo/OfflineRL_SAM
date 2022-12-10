@@ -371,6 +371,7 @@ class LearnableBase:
         ] = None,
         shuffle: bool = True,
         callback: Optional[Callable[["LearnableBase", int, int], None]] = None,
+        n_eval: int = 0,
         hessian_ckpt: Optional[Iterable] = None,
         hessian_eval_num: Optional[int] = None,
     ) -> List[Tuple[int, Dict[str, float]]]:
@@ -428,6 +429,7 @@ class LearnableBase:
                 scorers,
                 shuffle,
                 callback,
+                n_eval,
                 hessian_ckpt,
                 hessian_eval_num,
             )
@@ -454,6 +456,7 @@ class LearnableBase:
         ] = None,
         shuffle: bool = True,
         callback: Optional[Callable[["LearnableBase", int, int], None]] = None,
+        n_eval: int = 0,
         hessian_ckpt: Optional[Iterable] = None,
         hessian_eval_num: Optional[int] = None,
     ) -> Generator[Tuple[int, Dict[str, float]], None, None]:
@@ -747,6 +750,9 @@ class LearnableBase:
 
             yield epoch, metrics
 
+        if n_eval > 0:
+            self._deployment(scorers, n_eval, logger)
+            logger.commit(epoch, total_step)
         # drop reference to active logger since out of fit there is no active
         # logger
         self._active_logger.close()
@@ -881,6 +887,23 @@ class LearnableBase:
             # store metric locally
             if test_score is not None:
                 self._eval_results[name].append(test_score)
+    
+    def _deployment(
+        self,
+        scorers: Dict[str, Callable[[Any, List[Episode]], float]],
+        n_eval: int,
+        logger: D3RLPyLogger,
+    ) -> None:
+        assert 'environment' in scorers, "Please set the key for 'evaluate_on_environment(env)(model)' as 'environment'. "
+        scorer = scorers.get('environment')
+
+        print('\n Deployment:')
+        deployment_scores=[scorer(self) for _ in tqdm(range(n_eval))]
+        mean_score = np.mean(deployment_scores)
+        print(f"Deployment score:  Mean {mean_score:.6f}  std {np.std(deployment_scores):.6f}\n\n")
+        logger.add_metric("deployment_score_mean", mean_score)
+        logger.add_histogram("deployment_scores", deployment_scores)
+
 
     def save_params(self, logger: D3RLPyLogger) -> None:
         """Saves configurations as params.json.

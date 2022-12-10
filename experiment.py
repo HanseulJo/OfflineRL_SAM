@@ -151,11 +151,12 @@ if __name__ == '__main__':
         verbose=args.verbose,
         show_progress=args.show_progress,
         save_interval=args.save_interval,
+        n_eval=args.n_eval,
         hessian_ckpt=args.hessian_ckpt,
         hessian_eval_num=args.hessian_eval_num,
     )
 
-    if args.n_eval > 0 :
-        print('\n Deployment:')
-        scores=[evaluate_on_environment(env)(model) for _ in tqdm(range(args.n_eval))]
-        print(f"Deployment score: Mean {np.mean(scores):.6f} std {np.std(scores):.6f}\n\n")
+    #if args.n_eval > 0 :
+    #    print('\n Deployment:')
+    #    scores=[evaluate_on_environment(env)(model) for _ in tqdm(range(args.n_eval))]
+    #    print(f"Deployment score: Mean {np.mean(scores):.6f} std {np.std(scores):.6f}\n\n")

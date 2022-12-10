@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Any, Dict, Iterator, List, Optional, DefaultDict
 
 import numpy as np
+import torch
 import structlog
 from tensorboardX import SummaryWriter
 from typing_extensions import Protocol
@@ -39,6 +40,7 @@ class D3RLPyLogger:
     _verbose: bool
     _metrics_buffer: DefaultDict[str, List[float]]
     _figure_buffer: Dict[str, plt.Figure]
+    _hist_buffer: Dict[str, list | np.ndarray | torch.Tensor]
     _params: Optional[Dict[str, float]]
     _writer: Optional[SummaryWriter]
 
@@ -76,6 +78,7 @@ class D3RLPyLogger:
                 break
 
         self._metrics_buffer = defaultdict(list)
+        self._hist_buffer = {}
         self._figure_buffer = {}
 
         if tensorboard_dir:
@@ -115,6 +118,9 @@ class D3RLPyLogger:
     
     def add_figure(self, name: str, fig: plt.Figure) -> None:
         self._figure_buffer[name] = fig
+    
+    def add_histogram(self, name: str, arr: list | np.ndarray | torch.Tensor) -> None:
+        self._hist_buffer[name] = arr if not isinstance(arr, list) else np.array(arr)
 
     def commit(self, epoch: int, step: int) -> Dict[str, float]:
         metrics = {}
@@ -132,8 +138,16 @@ class D3RLPyLogger:
         for name, fig in self._figure_buffer.items():
             fig.savefig(os.path.join(self.logdir, f"{name}_Epoch{epoch}_Step{step}.pdf"))
             if self._writer:
-                self._writer.add_figure(f"histogram/{name}", fig, epoch)
+                self._writer.add_figure(f"figure/{name}", fig, epoch)
         plt.close()
+        # Add histograms
+        for name, arr in self._hist_buffer.items():
+            if self._save_metrics:
+                path = os.path.join(self._logdir, f"{name}.csv")
+                with open(path, "a") as f:
+                    print(f"{epoch},{step},"+','.join(map(str, arr)), file=f)
+                if self._writer:
+                    self._writer.add_histogram(f"histogram/{name}", arr, epoch)
         
         if self._verbose:
             LOG.info(
