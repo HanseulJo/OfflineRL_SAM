@@ -81,6 +81,8 @@ class CRRImpl(DDPGBaseImpl):
 
     def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._policy is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
 
         # compute log probability
         dist = self._policy.dist(batch.observations)
@@ -143,6 +145,8 @@ class CRRImpl(DDPGBaseImpl):
     def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._targ_q_func is not None
         assert self._targ_policy is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             action = self._targ_policy.sample(batch.next_observations)
             return self._targ_q_func.compute_target(

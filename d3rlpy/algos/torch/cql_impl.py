@@ -236,6 +236,8 @@ class CQLImpl(SACImpl):
         return clipped_alpha * (scaled_loss - self._alpha_threshold)
 
     def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         if self._soft_q_backup:
             target_value = super().compute_target(batch)
         else:

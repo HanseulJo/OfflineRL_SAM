@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 import numpy as np
+import torch
 
 from ..argument_utility import (
     ActionScalerArg,
@@ -17,6 +18,7 @@ from ..models.encoders import EncoderFactory
 from ..models.optimizers import AdamFactory, OptimizerFactory
 from .base import AlgoBase
 from .torch.bc_impl import BCBaseImpl, BCImpl, DiscreteBCImpl
+from ..iterators import TransitionIterator
 
 
 class _BCBase(AlgoBase):
@@ -78,6 +80,28 @@ class _BCBase(AlgoBase):
     def sample_action(self, x: Union[np.ndarray, List[Any]]) -> None:
         """sampling action is not supported by BC algorithm."""
         raise NotImplementedError("BC does not support sampling action.")
+    
+    def _hessian_max_abs_eigs(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> Dict[str, List[float]]:
+        assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
+        assert top_n > 0
+        hessian_top_n_eigenvalues = self._impl.hessian_eig_imitator(iterator, top_n, max_iter, tolerance, show_progress)
+        return {'hessian_top_n_eigenvalues': hessian_top_n_eigenvalues}
+
+    def _hessian_spectra(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Dict[str, List[List[float]]]:
+        assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
+        hessian_eigenvalues, weights = self._impl.hessian_spectra_imitator(iterator, n_run, max_iter, show_progress)
+        return {'hessian_spectra': (hessian_eigenvalues, weights)}
 
 
 class BC(_BCBase):

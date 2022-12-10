@@ -120,7 +120,8 @@ class AWACImpl(SACImpl):
 
     def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._policy is not None
-
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         # compute log probability
         dist = self._policy.dist(batch.observations)
         log_probs = dist.log_prob(batch.actions)

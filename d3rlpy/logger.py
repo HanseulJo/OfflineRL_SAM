@@ -3,13 +3,14 @@ import os
 import time
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Any, Dict, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, DefaultDict
 
 import numpy as np
 import structlog
 from tensorboardX import SummaryWriter
 from typing_extensions import Protocol
-
+from collections import defaultdict
+import matplotlib.pyplot as plt
 
 class _SaveProtocol(Protocol):
     def save_model(self, fname: str) -> None:
@@ -36,7 +37,8 @@ class D3RLPyLogger:
     _logdir: str
     _save_metrics: bool
     _verbose: bool
-    _metrics_buffer: Dict[str, List[float]]
+    _metrics_buffer: DefaultDict[str, List[float]]
+    _figure_buffer: Dict[str, plt.Figure]
     _params: Optional[Dict[str, float]]
     _writer: Optional[SummaryWriter]
 
@@ -73,7 +75,8 @@ class D3RLPyLogger:
             else:
                 break
 
-        self._metrics_buffer = {}
+        self._metrics_buffer = defaultdict(list)
+        self._figure_buffer = {}
 
         if tensorboard_dir:
             tfboard_path = os.path.join(
@@ -108,26 +111,30 @@ class D3RLPyLogger:
         self._params = {k: v for k, v in params.items() if np.isscalar(v)}
 
     def add_metric(self, name: str, value: float) -> None:
-        if name not in self._metrics_buffer:
-            self._metrics_buffer[name] = []
         self._metrics_buffer[name].append(value)
+    
+    def add_figure(self, name: str, fig: plt.Figure) -> None:
+        self._figure_buffer[name] = fig
 
     def commit(self, epoch: int, step: int) -> Dict[str, float]:
         metrics = {}
+        # Add scalars
         for name, buffer in self._metrics_buffer.items():
-
             metric = sum(buffer) / len(buffer)
-
             if self._save_metrics:
                 path = os.path.join(self._logdir, f"{name}.csv")
                 with open(path, "a") as f:
                     print(f"{epoch},{step},{metric}", file=f)
-
                 if self._writer:
                     self._writer.add_scalar(f"metrics/{name}", metric, epoch)
-
             metrics[name] = metric
-
+        # Add figures
+        for name, fig in self._figure_buffer.items():
+            fig.savefig(os.path.join(self.logdir, f"{name}_Epoch{epoch}_Step{step}.pdf"))
+            if self._writer:
+                self._writer.add_figure(f"histogram/{name}", fig, epoch)
+        plt.close()
+        
         if self._verbose:
             LOG.info(
                 f"{self._experiment_name}: epoch={epoch} step={step}",
@@ -145,7 +152,8 @@ class D3RLPyLogger:
             )
 
         # initialize metrics buffer
-        self._metrics_buffer = {}
+        self._metrics_buffer = defaultdict(list)
+        self._figure_buffer = {}
         return metrics
 
     def save_model(self, epoch: int, algo: _SaveProtocol) -> None:

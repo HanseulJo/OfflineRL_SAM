@@ -155,6 +155,8 @@ class PLASImpl(DDPGBaseImpl):
         assert self._imitator is not None
         assert self._policy is not None
         assert self._q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         latent_actions = 2.0 * self._policy(batch.observations)
         actions = self._imitator.decode(batch.observations, latent_actions)
         loss = -self._q_func(batch.observations, actions, "none")[0].mean()
@@ -174,6 +176,8 @@ class PLASImpl(DDPGBaseImpl):
         assert self._imitator is not None
         assert self._targ_policy is not None
         assert self._targ_q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             latent_actions = 2.0 * self._targ_policy(batch.next_observations)
             actions = self._imitator.decode(
@@ -274,6 +278,8 @@ class PLASWithPerturbationImpl(PLASImpl):
         assert self._policy is not None
         assert self._perturbation is not None
         assert self._q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         latent_actions = 2.0 * self._policy(batch.observations)
         actions = self._imitator.decode(batch.observations, latent_actions)
         residual_actions = self._perturbation(batch.observations, actions)
@@ -298,6 +304,8 @@ class PLASWithPerturbationImpl(PLASImpl):
         assert self._targ_policy is not None
         assert self._targ_perturbation is not None
         assert self._targ_q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             latent_actions = 2.0 * self._targ_policy(batch.next_observations)
             actions = self._imitator.decode(

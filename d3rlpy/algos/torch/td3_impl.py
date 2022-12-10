@@ -61,6 +61,8 @@ class TD3Impl(DDPGImpl):
     def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._targ_policy is not None
         assert self._targ_q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             action = self._targ_policy(batch.next_observations)
             # smoothing target

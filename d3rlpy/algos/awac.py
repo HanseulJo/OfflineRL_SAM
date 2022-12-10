@@ -189,13 +189,15 @@ class AWAC(AlgoBase):
 
         # delayed policy update
         if self._grad_step % self._update_actor_interval == 0:
-            actor_loss, mean_std = self._impl.update_actor(batch)
+            actor_loss = self._impl.update_actor(batch)
             #metrics.update({"actor_loss": actor_loss})
             ######## For SAM ##########
-            if isinstance(actor_loss, tuple):
-                actor_loss, actor_sharpness = actor_loss
+            if len(actor_loss) > 2:
+                actor_loss, _, actor_sharpness = actor_loss
                 metrics.update({"actor_loss":actor_loss, "actor_sharpness":actor_sharpness})
-            else: metrics.update({"actor_loss": actor_loss})
+            else:
+                actor_loss, actor_sharpness = actor_loss
+                metrics.update({"actor_loss": actor_loss})
             ###########################
             self._impl.update_critic_target()
             self._impl.update_actor_target()

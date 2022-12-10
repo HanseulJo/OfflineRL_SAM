@@ -115,6 +115,8 @@ class SACImpl(DDPGBaseImpl):
         assert self._policy is not None
         assert self._log_temp is not None
         assert self._q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         action, log_prob = self._policy.sample_with_log_prob(batch.observations)
         entropy = self._log_temp().exp() * log_prob
         q_t = self._q_func(batch.observations, action, "min")
@@ -168,6 +170,8 @@ class SACImpl(DDPGBaseImpl):
         assert self._policy is not None
         assert self._log_temp is not None
         assert self._targ_q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             action, log_prob = self._policy.sample_with_log_prob(
                 batch.next_observations
@@ -347,6 +351,8 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         assert self._policy is not None
         assert self._log_temp is not None
         assert self._targ_q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             log_probs = self._policy.log_probs(batch.next_observations)
             probs = log_probs.exp()
@@ -375,6 +381,8 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         )
 
     def compute_critic_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         q_tpn = self.compute_target(batch)
         loss = self._compute_critic_loss(batch, q_tpn)
         if l2_reg:
@@ -419,6 +427,8 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         assert self._q_func is not None
         assert self._policy is not None
         assert self._log_temp is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             q_t = self._q_func(batch.observations, reduction="min")
         log_probs = self._policy.log_probs(batch.observations)

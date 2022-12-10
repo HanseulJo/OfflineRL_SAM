@@ -334,6 +334,6 @@ class Swish(nn.Module):  # type: ignore
 def l2_regularized_loss(loss: torch.Tensor, model: nn.Module, optimizer: Optimizer):  # grad is enabled
     lam = optimizer.param_groups[0].get('weight_decay')
     if lam:
-        reg = torch.cat([p.norm(2) ** 2 for p in model.parameters()]).sum()
+        reg = torch.cat([p.norm(2).view(-1) ** 2 for p in model.parameters()]).sum()
         return loss + (.5 * lam) * reg
     return loss

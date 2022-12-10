@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from typing import Optional, Sequence, Union
+from typing import Optional, Sequence, Union, List, Tuple
 
 import numpy as np
 import torch
@@ -25,6 +25,8 @@ from ...models.torch import (
 from ...preprocessing import ActionScaler, Scaler
 from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api, l2_regularized_loss
 from .base import TorchImplBase
+from ...iterators import TransitionIterator
+from ...hessian_utils import hessian_eigenvalues, hessien_empirical_spectral_density
 
 
 class BCBaseImpl(TorchImplBase, metaclass=ABCMeta):
@@ -114,11 +116,13 @@ class BCBaseImpl(TorchImplBase, metaclass=ABCMeta):
         ###########################
 
         return loss.cpu().detach().numpy()
-
+    
     def compute_imitator_loss(
         self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False,
     ) -> torch.Tensor:
         assert self._imitator is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         loss = self._imitator.compute_error(batch.observations, batch.actions)
         if l2_reg:
             return l2_regularized_loss(loss, self._imitator, self._optim)
@@ -133,6 +137,25 @@ class BCBaseImpl(TorchImplBase, metaclass=ABCMeta):
     ) -> np.ndarray:
         raise NotImplementedError("BC does not support value estimation")
 
+    def hessian_eig_imitator(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> List[float]:
+        return hessian_eigenvalues(self._imitator, self.compute_imitator_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
+    
+    def hessian_spectra_imitator(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Tuple[List[List[float]], List[List[float]]]:
+        eigenvalues, weights = hessien_empirical_spectral_density(
+            self._imitator, self.compute_imitator_loss, iterator, n_run, max_iter, show_progress, device=self.device
+        )
+        return eigenvalues, weights
 
 
 class BCImpl(BCBaseImpl):
@@ -259,4 +282,6 @@ class DiscreteBCImpl(BCBaseImpl):
         self, batch: TorchMiniBatch
     ) -> torch.Tensor:
         assert self._imitator is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         return self._imitator.compute_error(batch.observations, batch.actions.long())

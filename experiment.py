@@ -26,7 +26,7 @@ ALG_OPT_PARAM = {
 }
 
 ALG_LR_KWARGS = {
-    'AWAC': {'actor_learning_rate', 'critic_learning_rate'},
+    'AWAC': {'actor_learning_rate':3e-4, 'critic_learning_rate':3e-4},
     'BC': {'learning_rate':1e-3},
     'DiscreteBC': {'learning_rate':1e-3},
     'BCQ': {'actor_learning_rate':1e-3, 'critic_learning_rate':1e-3, 'imitator_learning_rate':1e-3},
@@ -69,6 +69,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr_scale_SGD', default=1., type=float)
     parser.add_argument('--verbose', action='store_true')
     parser.add_argument('--show_progress', action='store_true')
+    parser.add_argument('-H', '--hessian_ckpt', nargs='+', type=int)
+    parser.add_argument('--hessian_eval_num', default=40, type=int)
     args = parser.parse_args()
     
     use_gpu = torch.cuda.is_available()
@@ -149,6 +151,8 @@ if __name__ == '__main__':
         verbose=args.verbose,
         show_progress=args.show_progress,
         save_interval=args.save_interval,
+        hessian_ckpt=args.hessian_ckpt,
+        hessian_eval_num=args.hessian_eval_num,
     )
 
     if args.n_eval > 0 :

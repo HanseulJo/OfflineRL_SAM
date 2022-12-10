@@ -170,6 +170,8 @@ class DDPGBaseImpl(ContinuousQFunctionMixin, TorchImplBase, metaclass=ABCMeta):
         return loss.cpu().detach().numpy()
 
     def compute_critic_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         q_tpn = self.compute_target(batch)
         loss = self._compute_critic_loss(batch, q_tpn)
         if l2_reg:
@@ -285,6 +287,8 @@ class DDPGImpl(DDPGBaseImpl):
     def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._policy is not None
         assert self._q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         action = self._policy(batch.observations)
         q_t = self._q_func(batch.observations, action, "none")[0]
         loss = -q_t.mean()
@@ -295,6 +299,8 @@ class DDPGImpl(DDPGBaseImpl):
     def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._targ_q_func is not None
         assert self._targ_policy is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             action = self._targ_policy(batch.next_observations)
             return self._targ_q_func.compute_target(

@@ -168,6 +168,8 @@ class BEARImpl(SACImpl):
         )
 
     def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         loss = super().compute_actor_loss(batch)
         mmd_loss = self._compute_mmd_loss(batch.observations)
         if l2_reg:
@@ -242,6 +244,8 @@ class BEARImpl(SACImpl):
 
     def compute_imitator_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._imitator is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         loss = self._imitator.compute_error(batch.observations, batch.actions)
         if l2_reg:
             return l2_regularized_loss(loss, self._imitator, self._imitator_optim)
@@ -332,6 +336,8 @@ class BEARImpl(SACImpl):
         assert self._policy is not None
         assert self._targ_q_func is not None
         assert self._log_temp is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             # BCQ-like target computation
             actions, log_probs = self._policy.sample_n_with_log_prob(

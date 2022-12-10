@@ -133,6 +133,8 @@ class BCQImpl(DDPGBaseImpl):
         assert self._imitator is not None
         assert self._policy is not None
         assert self._q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         latent = torch.randn(
             batch.observations.shape[0],
             2 * self._action_size,
@@ -183,6 +185,8 @@ class BCQImpl(DDPGBaseImpl):
     
     def compute_imitator_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] =False) -> torch.Tensor:
         assert self._imitator is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         loss = self._imitator.compute_error(batch.observations, batch.actions)
         if l2_reg:
             return l2_regularized_loss(loss, self._imitator, self._imitator_optim)
@@ -242,6 +246,8 @@ class BCQImpl(DDPGBaseImpl):
 
     def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._targ_q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         # TODO: this seems to be slow with image observation
         with torch.no_grad():
             repeated_x = self._repeat_observation(batch.next_observations)

@@ -130,6 +130,8 @@ class DQNImpl(DiscreteQFunctionMixin, TorchImplBase):
         return loss.cpu().detach().numpy()
 
     def compute_critic_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         q_tpn = self.compute_target(batch)
         loss = self._compute_critic_loss(batch, q_tpn)
         if l2_reg:
@@ -153,6 +155,8 @@ class DQNImpl(DiscreteQFunctionMixin, TorchImplBase):
 
     def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._targ_q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             next_actions = self._targ_q_func(batch.next_observations)
             max_action = next_actions.argmax(dim=1)
@@ -188,6 +192,8 @@ class DQNImpl(DiscreteQFunctionMixin, TorchImplBase):
 class DoubleDQNImpl(DQNImpl):
     def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._targ_q_func is not None
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             action = self._predict_best_action(batch.next_observations)
             return self._targ_q_func.compute_target(

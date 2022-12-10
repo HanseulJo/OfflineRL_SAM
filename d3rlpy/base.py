@@ -14,10 +14,12 @@ from typing import (
     Tuple,
     Union,
     cast,
+    Iterable,
 )
-
+import os
 import gym
 import numpy as np
+import torch
 from tqdm.auto import tqdm
 
 from .argument_utility import (
@@ -53,6 +55,7 @@ from .preprocessing import (
     create_reward_scaler,
     create_scaler,
 )
+from .hessian_utils import get_esd_plot
 
 
 class ImplBase(metaclass=ABCMeta):
@@ -172,6 +175,7 @@ class LearnableBase:
         self._impl = None
         self._eval_results = defaultdict(list)
         self._loss_history = defaultdict(list)
+        self._hessian_spectra_history = defaultdict(list)  # For Hessian
         self._active_logger = None
         self._grad_step = 0
 
@@ -293,6 +297,7 @@ class LearnableBase:
             if key in [
                 "_eval_results",
                 "_loss_history",
+                "_hessian_history",
                 "_active_logger",
                 "_grad_step",
                 "active_logger",
@@ -366,6 +371,8 @@ class LearnableBase:
         ] = None,
         shuffle: bool = True,
         callback: Optional[Callable[["LearnableBase", int, int], None]] = None,
+        hessian_ckpt: Optional[Iterable] = None,
+        hessian_eval_num: Optional[int] = None,
     ) -> List[Tuple[int, Dict[str, float]]]:
         """Trains with the given dataset.
 
@@ -421,6 +428,8 @@ class LearnableBase:
                 scorers,
                 shuffle,
                 callback,
+                hessian_ckpt,
+                hessian_eval_num,
             )
         )
         return results
@@ -445,6 +454,8 @@ class LearnableBase:
         ] = None,
         shuffle: bool = True,
         callback: Optional[Callable[["LearnableBase", int, int], None]] = None,
+        hessian_ckpt: Optional[Iterable] = None,
+        hessian_eval_num: Optional[int] = None,
     ) -> Generator[Tuple[int, Dict[str, float]], None, None]:
         """Iterate over epochs steps to train with the given dataset. At each
              iteration algo methods and properties can be changed or queried.
@@ -541,6 +552,22 @@ class LearnableBase:
             LOG.debug("RoundIterator is selected.")
         else:
             raise ValueError("Either of n_epochs or n_steps must be given.")
+        
+        # (New!) Hessian spectra
+        if hessian_ckpt:  # e.g. [1, n_epochs]
+            hessian_ckpt = sorted(set(idx if idx>=0 else (idx%n_epochs+1) for idx in hessian_ckpt)) # dealing with negative indices
+            iterator_for_hessian = RoundIterator(
+                transitions,
+                batch_size=self._batch_size,
+                n_steps=self._n_steps,
+                gamma=self._gamma,
+                n_frames=self._n_frames,
+                real_ratio=self._real_ratio,
+                generated_maxlen=self._generated_maxlen,
+                shuffle=shuffle,
+            )
+            self._hessian_history = defaultdict(list) 
+            print("hessian_ckpt", hessian_ckpt)  
 
         # setup logger
         logger = self._prepare_logger(
@@ -598,6 +625,31 @@ class LearnableBase:
         # refresh loss history
         self._loss_history = defaultdict(list)
 
+        # initially hidden
+        if hessian_ckpt:  # e.g. [0, n_epochs]
+
+            with logger.measure_time("hessian_max_abs_eigenvalue"):
+                hessian_max_abs_eigenvalue = self.hessian_max_abs_eigs(
+                    iterator_for_hessian,
+                    top_n=1, max_iter=hessian_eval_num, tolerance=1e-3, show_progress=show_progress
+                )
+            for name, val in hessian_max_abs_eigenvalue.items():
+                logger.add_metric(name, val[0])
+                self._hessian_history[name].append(val[0])
+
+            if 0 in hessian_ckpt:
+                with logger.measure_time("hessian_spectra"):
+                    hessian_spectra_dict = self.hessian_spectra(
+                        iterator_for_hessian,
+                        n_run=1, max_iter=hessian_eval_num, show_progress=show_progress
+                    )
+                for name, val in hessian_spectra_dict.items():
+                    eigenvalues, weights = val
+                    fig = get_esd_plot(eigenvalues, weights)
+                    logger.add_figure(name, fig)
+            
+            logger.commit(0, 0)
+
         # training loop
         total_step = 0
         for epoch in range(1, n_epochs + 1):
@@ -636,6 +688,7 @@ class LearnableBase:
                     with logger.measure_time("algorithm_update"):
                         loss = self.update(batch)
 
+
                     # record metrics
                     for name, val in loss.items():
                         logger.add_metric(name, val)
@@ -663,6 +716,27 @@ class LearnableBase:
 
             if scorers and eval_episodes:
                 self._evaluate(eval_episodes, scorers, logger)
+            
+            if hessian_ckpt:  # e.g. [1, n_epochs]
+                with logger.measure_time("hessian_max_abs_eigenvalue"):
+                    hessian_max_abs_eigenvalue = self.hessian_max_abs_eigs(
+                        iterator_for_hessian,
+                        top_n=1, max_iter=hessian_eval_num, tolerance=1e-3, show_progress=show_progress
+                    )
+                for name, val in hessian_max_abs_eigenvalue.items():
+                    logger.add_metric(name, val[0])
+                    self._hessian_history[name].append(val[0])
+
+                if epoch in hessian_ckpt:
+                    with logger.measure_time("hessian_spectra"):
+                        hessian_spectra_dict = self.hessian_spectra(
+                            iterator_for_hessian,
+                            n_run=1, max_iter=hessian_eval_num, show_progress=show_progress
+                        )
+                    for name, val in hessian_spectra_dict.items():
+                        eigenvalues, weights = val
+                        fig = get_esd_plot(eigenvalues, weights)
+                        logger.add_figure(name, fig)
 
             # save metrics
             metrics = logger.commit(epoch, total_step)
@@ -845,6 +919,61 @@ class LearnableBase:
 
         """
         raise NotImplementedError
+
+    ########## For Hessian Spectrum ########## 
+
+    def hessian_max_abs_eigs(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> Dict[str, List[float]]:
+        """ Top-n maximum-absolute eigenvalues.
+
+        Args:
+            iterator: a minibatch loader.
+            top_n: number of eigenvalues in the output (= length of output)
+            max_iter: max num of iterations for each eigenvalue computation.
+            tolerance: relative tolerance btw 2 consecutive eignevalue computations from power iteration.
+
+        """
+        return self._hessian_max_abs_eigs(iterator, top_n, max_iter, tolerance, show_progress)
+    
+    def hessian_spectra(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool],
+    ) -> Dict[str, List[List[float]]]:
+        """ Eigenvalue density using stochastic lanczos quadrature algorithm (SLQ).
+
+        Args:
+            iterator: a minibatch loader.
+            n_run: number of SLQ runs
+            max_iter: max num of iterations for each eigenvalue computation.
+
+        """
+        return self._hessian_spectra(iterator, n_run, max_iter, show_progress)
+    
+    def _hessian_max_abs_eigs(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> Dict[str, List[float]]:
+        raise NotImplementedError
+
+    def _hessian_spectra(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Dict[str, List[List[float]]]:
+        raise NotImplementedError
+
+    ##### End of  'For Hessian Spectrum' #####
 
     @property
     def batch_size(self) -> int:

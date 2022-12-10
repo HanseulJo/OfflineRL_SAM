@@ -111,12 +111,15 @@ class IQLImpl(DDPGBaseImpl):
 
     def compute_target(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._value_func
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         with torch.no_grad():
             return self._value_func(batch.next_observations)
 
     def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._policy
-
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         # compute log probability
         dist = self._policy.dist(batch.observations)
         log_probs = dist.log_prob(batch.actions)
@@ -138,6 +141,8 @@ class IQLImpl(DDPGBaseImpl):
     def compute_value_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._targ_q_func
         assert self._value_func
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
         q_t = self._targ_q_func(batch.observations, batch.actions, "min")
         v_t = self._value_func(batch.observations)
         diff = q_t.detach() - v_t

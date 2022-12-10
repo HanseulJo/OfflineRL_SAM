@@ -10,3 +10,4 @@ changes/
 sam copy.py
 runner.py
 logs/
+experiment_notes/
