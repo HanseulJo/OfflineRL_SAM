@@ -254,7 +254,7 @@ def get_esd_plot(eigenvalues, weights):
     fig, ax = plt.subplots()
 
     ax.semilogy(grids, density + 1.0e-7)
-    plt.ylabel('Density + $\eps$ (Log Scale, $\eps=10^-7$)', fontsize=14, labelpad=10)
+    plt.ylabel('Density $+\epsilon$ (Log Scale, $\epsilon=10^{-7}$)', fontsize=14, labelpad=10)
     plt.xlabel('Eigenvlaue', fontsize=14, labelpad=10)
     plt.xticks(fontsize=12)
     plt.yticks(fontsize=12)

@@ -1,6 +1,6 @@
 import copy
 import math
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, List
 
 import numpy as np
 import torch
@@ -29,6 +29,8 @@ from ...torch_utility import TorchMiniBatch, hard_sync, torch_api, train_api, l2
 from .base import TorchImplBase
 from .ddpg_impl import DDPGBaseImpl
 from .utility import DiscreteQFunctionMixin
+from ...iterators import TransitionIterator
+from ...hessian_utils import hessian_eigenvalues, hessien_empirical_spectral_density
 
 
 class SACImpl(DDPGBaseImpl):
@@ -183,6 +185,26 @@ class SACImpl(DDPGBaseImpl):
                 reduction="min",
             )
             return target - entropy
+
+    def hessian_eig_actor(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> List[float]:
+        return hessian_eigenvalues(self._actor, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
+    
+    def hessian_spectra_actor(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Tuple[List[List[float]], List[List[float]]]:
+        eigenvalues, weights = hessien_empirical_spectral_density(
+            self._actor, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
+        )
+        return eigenvalues, weights
 
 
 class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
@@ -516,3 +538,43 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
     def q_function_optim(self) -> Optimizer:
         assert self._critic_optim
         return self._critic_optim
+
+    def hessian_eig_critic(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> List[float]:
+        return hessian_eigenvalues(self._q_func, self.compute_critic_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
+    
+    def hessian_spectra_critic(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Tuple[List[List[float]], List[List[float]]]:
+        eigenvalues, weights = hessien_empirical_spectral_density(
+            self._q_func, self.compute_critic_loss, iterator, n_run, max_iter, show_progress, device=self.device
+        )
+        return eigenvalues, weights
+    
+    def hessian_eig_actor(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> List[float]:
+        return hessian_eigenvalues(self._actor, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
+    
+    def hessian_spectra_actor(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Tuple[List[List[float]], List[List[float]]]:
+        eigenvalues, weights = hessien_empirical_spectral_density(
+            self._actor, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
+        )
+        return eigenvalues, weights

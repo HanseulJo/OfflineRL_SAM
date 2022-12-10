@@ -1,6 +1,6 @@
 # pylint: disable=too-many-ancestors
 
-from typing import Optional, Sequence
+from typing import Optional, Sequence, List, Tuple
 
 import torch
 
@@ -11,6 +11,9 @@ from ...models.q_functions import QFunctionFactory
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
 from ...torch_utility import TorchMiniBatch, l2_regularized_loss
 from .td3_impl import TD3Impl
+from ...iterators import TransitionIterator
+from ...hessian_utils import hessian_eigenvalues, hessien_empirical_spectral_density
+
 
 
 class TD3PlusBCImpl(TD3Impl):
@@ -73,3 +76,23 @@ class TD3PlusBCImpl(TD3Impl):
         if l2_reg:
             return l2_regularized_loss(loss, self._policy, self._actor_optim)
         return loss
+    
+    def hessian_eig_actor(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> List[float]:
+        return hessian_eigenvalues(self._actor, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
+    
+    def hessian_spectra_actor(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Tuple[List[List[float]], List[List[float]]]:
+        eigenvalues, weights = hessien_empirical_spectral_density(
+            self._actor, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
+        )
+        return eigenvalues, weights

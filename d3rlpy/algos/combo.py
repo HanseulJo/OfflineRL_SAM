@@ -23,6 +23,7 @@ from ..models.q_functions import QFunctionFactory
 from .base import AlgoBase
 from .torch.combo_impl import COMBOImpl
 from .utility import ModelBaseMixin
+from ..iterators import TransitionIterator
 
 
 class COMBO(ModelBaseMixin, AlgoBase):
@@ -269,3 +270,31 @@ class COMBO(ModelBaseMixin, AlgoBase):
 
     def _get_rollout_horizon(self) -> int:
         return self._rollout_horizon
+    
+    def _hessian_max_abs_eigs(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> Dict[str, List[float]]:
+        assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
+        assert top_n > 0
+        return {
+            'critic_hessian_top_n_eigenvalues': self._impl.hessian_eig_critic(iterator, top_n, max_iter, tolerance, show_progress),
+            'actor_hessian_top_n_eigenvalues': self._impl.hessian_eig_actor(iterator, top_n, max_iter, tolerance, show_progress),
+        }
+
+    def _hessian_spectra(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Dict[str, List[List[float]]]:
+        assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
+        critic_hessian_eigenvalues, critic_weights = self._impl.hessian_spectra_critic(iterator, n_run, max_iter, show_progress)
+        actor_hessian_eigenvalues, actor_weights = self._impl.hessian_spectra_actor(iterator, n_run, max_iter, show_progress)
+        return {
+            'critic_hessian_spectra': (critic_hessian_eigenvalues, critic_weights),
+            'actor_hessian_spectra': (actor_hessian_eigenvalues, actor_weights),
+        }

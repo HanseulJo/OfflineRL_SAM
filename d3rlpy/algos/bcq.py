@@ -21,6 +21,7 @@ from ..models.optimizers import AdamFactory, OptimizerFactory
 from ..models.q_functions import QFunctionFactory
 from .base import AlgoBase
 from .torch.bcq_impl import BCQImpl, DiscreteBCQImpl
+from ..iterators import TransitionIterator
 
 
 class BCQ(AlgoBase):
@@ -303,6 +304,37 @@ class BCQ(AlgoBase):
     def get_action_type(self) -> ActionSpace:
         return ActionSpace.CONTINUOUS
 
+    def _hessian_max_abs_eigs(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> Dict[str, List[float]]:
+        assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
+        assert top_n > 0
+        return {
+            'imitator_hessian_top_n_eigenvalues': self._impl.hessian_eig_imitator(iterator, top_n, max_iter, tolerance, show_progress),
+            'critic_hessian_top_n_eigenvalues': self._impl.hessian_eig_critic(iterator, top_n, max_iter, tolerance, show_progress),
+            'actor_hessian_top_n_eigenvalues': self._impl.hessian_eig_actor(iterator, top_n, max_iter, tolerance, show_progress),
+        }
+
+    def _hessian_spectra(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Dict[str, List[List[float]]]:
+        assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
+        imitator_hessian_eigenvalues, imitator_weights = self._impl.hessian_spectra_imitator(iterator, n_run, max_iter, show_progress)
+        critic_hessian_eigenvalues, critic_weights = self._impl.hessian_spectra_critic(iterator, n_run, max_iter, show_progress)
+        actor_hessian_eigenvalues, actor_weights = self._impl.hessian_spectra_actor(iterator, n_run, max_iter, show_progress)
+        return {
+            'imitator_hessian_spectra': (imitator_hessian_eigenvalues, imitator_weights),
+            'critic_hessian_spectra': (critic_hessian_eigenvalues, critic_weights),
+            'actor_hessian_spectra': (actor_hessian_eigenvalues, actor_weights),
+        }
+
 
 class DiscreteBCQ(AlgoBase):
     r"""Discrete version of Batch-Constrained Q-learning algorithm.
@@ -460,3 +492,25 @@ class DiscreteBCQ(AlgoBase):
 
     def get_action_type(self) -> ActionSpace:
         return ActionSpace.DISCRETE
+
+    def _hessian_max_abs_eigs(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> Dict[str, List[float]]:
+        assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
+        assert top_n > 0
+        hessian_top_n_eigenvalues = self._impl.hessian_eig_imitator(iterator, top_n, max_iter, tolerance, show_progress)
+        return {'hessian_top_n_eigenvalues': hessian_top_n_eigenvalues}
+
+    def _hessian_spectra(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Dict[str, List[List[float]]]:
+        assert self._impl is not None, IMPL_NOT_INITIALIZED_ERROR
+        hessian_eigenvalues, weights = self._impl.hessian_spectra_imitator(iterator, n_run, max_iter, show_progress)
+        return {'hessian_spectra': (hessian_eigenvalues, weights)}

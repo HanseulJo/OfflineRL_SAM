@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Tuple, List
 
 import numpy as np
 import torch
@@ -14,7 +14,8 @@ from ...preprocessing import ActionScaler, RewardScaler, Scaler
 from ...torch_utility import TorchMiniBatch, torch_api, train_api, l2_regularized_loss
 from .sac_impl import SACImpl
 from .utility import disable_running_stats, enable_running_stats
-
+from ...iterators import TransitionIterator
+from ...hessian_utils import hessian_eigenvalues, hessien_empirical_spectral_density
 
 class AWACImpl(SACImpl):
 
@@ -171,3 +172,23 @@ class AWACImpl(SACImpl):
             weights = F.softmax(adv_values / self._lam, dim=0).view(-1, 1)
 
         return weights * adv_values.numel()
+ 
+    def hessian_eig_actor(self,
+        iterator: TransitionIterator,
+        top_n: int,
+        max_iter: int,
+        tolerance: Optional[float],
+        show_progress: Optional[bool],
+    ) -> List[float]:
+        return hessian_eigenvalues(self._actor, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
+    
+    def hessian_spectra_actor(self,
+        iterator: TransitionIterator,
+        n_run: int,
+        max_iter: int,
+        show_progress: Optional[bool]
+    ) -> Tuple[List[List[float]], List[List[float]]]:
+        eigenvalues, weights = hessien_empirical_spectral_density(
+            self._actor, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
+        )
+        return eigenvalues, weights
