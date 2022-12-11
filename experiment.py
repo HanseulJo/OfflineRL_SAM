@@ -81,15 +81,18 @@ if __name__ == '__main__':
     #parser.add_argument('-g', '--use_gpu', default=False, type=int)
     parser.add_argument('-p', '--pretrained_path', default=None)
     parser.add_argument('-T', '--tags', type=str, help="Add tag to d3rlpy_logs/*/.")
-    parser.add_argument('-S', '--seed', default=None, type=int, help="Random seed for train-validation split.")
-    parser.add_argument('--lr_scale', default=1., type=float, help="Multiply some number to the default learning rates.")
-    parser.add_argument('--lr_scale_SGD', default=1., type=float, help="Multiply some number to the default learning rates, only for SGD.")
+    parser.add_argument('-S', '--seed', default=None, type=int, help="Random seed for Train-Validation-split and Model training.")
+    parser.add_argument('--lr_scale', default=None, type=float, help="Multiply some number to the default learning rates.")
+    parser.add_argument('--lr_scale_SGD', default=None, type=float, help="Multiply some number to the default learning rates, only for SGD.")
     parser.add_argument('--verbose', action='store_true', help="Show the evaluated metrics every time. (number of printing: --logging_num)")
     parser.add_argument('--show_progress', action='store_true', help="Show the progress bar (tqdm). (number of printing: --logging_num)")
-    parser.add_argument('-H', '--hessian_ckpt', nargs='+', type=int,
-        help="What epoch do you want to calculate the hessian spectra (with SLQ)? Example: `--hessian ckpt 0 1 -1` (before training, first epoch of training, and the last epoch)")
-    parser.add_argument('--hessian_eval_num', default=40, type=int,
-        help="How many times do you want to run Lanczos Algorithm in SLQ?"
+    parser.add_argument('-H', '--hessian_ckpt', nargs='+', default=None, type=int,
+        help="What epoch do you want to calculate the hessian spectra (with SLQ)? Example: `--hessian_ckpt 0 1 -1` (before training, first epoch of training, and the last epoch)")
+    parser.add_argument('--hessian_eval_num', default=None, type=int,
+        help="How many times do you want to run Lanczos Algorithm in SLQ? (usually 100)"
+    )
+    parser.add_argument('--hessian_max_eig_every_epoch', action='store_true',
+        help="If you want to evaluate hess. max. eig at every epoch, please turn on this option."
     )
     args = parser.parse_args()
     
@@ -100,10 +103,14 @@ if __name__ == '__main__':
     env.reset()
 
     # train / validation split
-    train_episodes, test_episodes = train_test_split(dataset, test_size=0.2, random_state=args.seed if args.seed is not None else 0)
+    train_episodes, test_episodes = train_test_split(dataset, test_size=0.2, random_state=args.seed)
 
     # get algorithm type
     algorithm = getattr(d3rlpy.algos, args.algorithm_name)
+
+    # Fix seeds
+    if args.seed is not None:
+        d3rlpy.seed(args.seed)
     
     # Default optimizers 
     OPT = {
@@ -131,29 +138,32 @@ if __name__ == '__main__':
         opt_string += '_' + opt_type.split('_')[0] + '_' + opt_name
     if args.rho is not None:
         opt_string += f'_Rho{args.rho}'
-    if args.lr_scale != 1.:
+    if args.lr_scale is not None:
         opt_string += f'_LRx{args.lr_scale}'
-    elif args.lr_scale_SGD != 1.:
+    elif args.lr_scale_SGD is not None:
         opt_string += f'_LRx{args.lr_scale_SGD}'
     opt_string = opt_string[1:]
     #opt_string = '_'.join(sum([[opt_type.split('_')[0], opt_name] for opt_type, opt_name in opt_zip], start=[]))  # only works for higher Python version
 
     # learning rates
     lr_kwargs = ALG_LR_KWARGS[args.algorithm_name]
-    if args.lr_scale != 1.:
+    if args.lr_scale is not None:
         for k_opt, k_lr in zip(args.optimizers, lr_kwargs.keys()):
             lr_kwargs[k_lr] = lr_kwargs[k_lr] * args.lr_scale  # scale all LR
-    elif args.lr_scale_SGD != 1.:
+    elif args.lr_scale_SGD is not None:
         for k_opt, k_lr in zip(args.optimizers, lr_kwargs.keys()):
             if k_opt in ['SGD', 'SamSGD', 'ASamSGD']:
                 lr_kwargs[k_lr] = lr_kwargs[k_lr] * args.lr_scale_SGD  # larger LR for SGD
 
-    experiment_name = f"{args.algorithm_name}_{opt_string}"
+    # build model
     model = algorithm(use_gpu=use_gpu, batch_size=args.batch_size, **lr_kwargs, **opt_kwargs)
-    
     if args.pretrained_path:
         model.build_with_env(env)
         model.load_model(args.pretrained_path)
+
+    # logging directory & experiment name
+    experiment_name = f"{args.algorithm_name}_{opt_string}"
+    logdir = os.path.join("d3rlpy_logs", args.task_name+'_'+args.tags)
 
     # scorers
     scorers = {'environment': evaluate_on_environment(env)}
@@ -164,13 +174,6 @@ if __name__ == '__main__':
             'value_scale': average_value_estimation_scorer # smaller is better
         })
 
-    # logging directory
-    logdir = os.path.join("d3rlpy_logs", args.task_name+'_'+args.tags)
-
-    # Fix seed
-    if args.seed is not None:
-        fix_seeds(args.seed)
-    
     # Train
     model.fit(
         train_episodes,
@@ -188,6 +191,7 @@ if __name__ == '__main__':
         n_eval=args.n_eval,
         hessian_ckpt=args.hessian_ckpt,
         hessian_eval_num=args.hessian_eval_num,
+        hessian_max_eig_every_epoch=args.hessian_max_eig_every_epoch,
     )
 
     #if args.n_eval > 0 :

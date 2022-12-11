@@ -193,7 +193,7 @@ class SACImpl(DDPGBaseImpl):
         tolerance: Optional[float],
         show_progress: Optional[bool],
     ) -> List[float]:
-        return hessian_eigenvalues(self._actor, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
+        return hessian_eigenvalues(self._policy, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
     
     def hessian_spectra_actor(self,
         iterator: TransitionIterator,
@@ -202,7 +202,7 @@ class SACImpl(DDPGBaseImpl):
         show_progress: Optional[bool]
     ) -> Tuple[List[List[float]], List[List[float]]]:
         eigenvalues, weights = hessien_empirical_spectral_density(
-            self._actor, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
+            self._policy, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
         )
         return eigenvalues, weights
 
@@ -566,7 +566,7 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         tolerance: Optional[float],
         show_progress: Optional[bool],
     ) -> List[float]:
-        return hessian_eigenvalues(self._actor, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
+        return hessian_eigenvalues(self._policy, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
     
     def hessian_spectra_actor(self,
         iterator: TransitionIterator,
@@ -575,6 +575,6 @@ class DiscreteSACImpl(DiscreteQFunctionMixin, TorchImplBase):
         show_progress: Optional[bool]
     ) -> Tuple[List[List[float]], List[List[float]]]:
         eigenvalues, weights = hessien_empirical_spectral_density(
-            self._actor, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
+            self._policy, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
         )
         return eigenvalues, weights

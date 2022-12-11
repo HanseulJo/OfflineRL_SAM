@@ -374,6 +374,7 @@ class LearnableBase:
         n_eval: int = 0,
         hessian_ckpt: Optional[Iterable] = None,
         hessian_eval_num: Optional[int] = None,
+        hessian_max_eig_every_epoch: Optional[bool] = None,
     ) -> List[Tuple[int, Dict[str, float]]]:
         """Trains with the given dataset.
 
@@ -432,6 +433,7 @@ class LearnableBase:
                 n_eval,
                 hessian_ckpt,
                 hessian_eval_num,
+                hessian_max_eig_every_epoch,
             )
         )
         return results
@@ -459,6 +461,7 @@ class LearnableBase:
         n_eval: int = 0,
         hessian_ckpt: Optional[Iterable] = None,
         hessian_eval_num: Optional[int] = None,
+        hessian_max_eig_every_epoch: Optional[bool] = None
     ) -> Generator[Tuple[int, Dict[str, float]], None, None]:
         """Iterate over epochs steps to train with the given dataset. At each
              iteration algo methods and properties can be changed or queried.
@@ -557,7 +560,7 @@ class LearnableBase:
             raise ValueError("Either of n_epochs or n_steps must be given.")
         
         # (New!) Hessian spectra
-        if hessian_ckpt:  # e.g. [1, n_epochs]
+        if hessian_eval_num is not None:  # e.g. [1, n_epochs]
             hessian_ckpt = sorted(set(idx if idx>=0 else (idx%n_epochs+1) for idx in hessian_ckpt)) # dealing with negative indices
             iterator_for_hessian = RoundIterator(
                 transitions,
@@ -633,18 +636,18 @@ class LearnableBase:
         logger.save_model(0, self)
 
         # initial hessian spectra
-        if hessian_ckpt:  # e.g. [0, n_epochs]
+        if hessian_eval_num is not None:
+            if hessian_max_eig_every_epoch or ((hessian_ckpt is not None) and (0 in hessian_ckpt)):
+                with logger.measure_time("hessian_max_abs_eigenvalue"):
+                    hessian_max_abs_eigenvalue = self.hessian_max_abs_eigs(
+                        iterator_for_hessian,
+                        top_n=1, max_iter=hessian_eval_num, tolerance=1e-3, show_progress=show_progress
+                    )
+                for name, val in hessian_max_abs_eigenvalue.items():
+                    logger.add_metric(name, val[0])
+                    self._hessian_history[name].append(val[0])
 
-            with logger.measure_time("hessian_max_abs_eigenvalue"):
-                hessian_max_abs_eigenvalue = self.hessian_max_abs_eigs(
-                    iterator_for_hessian,
-                    top_n=1, max_iter=hessian_eval_num, tolerance=1e-3, show_progress=show_progress
-                )
-            for name, val in hessian_max_abs_eigenvalue.items():
-                logger.add_metric(name, val[0])
-                self._hessian_history[name].append(val[0])
-
-            if 0 in hessian_ckpt:
+            if (hessian_ckpt is not None) and (0 in hessian_ckpt):
                 with logger.measure_time("hessian_spectra"):
                     hessian_spectra_dict = self.hessian_spectra(
                         iterator_for_hessian,
@@ -724,17 +727,18 @@ class LearnableBase:
             if scorers and eval_episodes:
                 self._evaluate(eval_episodes, scorers, logger)
             
-            if hessian_ckpt:  # e.g. [1, n_epochs]
-                with logger.measure_time("hessian_max_abs_eigenvalue"):
-                    hessian_max_abs_eigenvalue = self.hessian_max_abs_eigs(
-                        iterator_for_hessian,
-                        top_n=1, max_iter=hessian_eval_num, tolerance=1e-3, show_progress=show_progress
-                    )
-                for name, val in hessian_max_abs_eigenvalue.items():
-                    logger.add_metric(name, val[0])
-                    self._hessian_history[name].append(val[0])
+            if hessian_eval_num is not None:
+                if hessian_max_eig_every_epoch or ((hessian_ckpt is not None) and (epoch in hessian_ckpt)):
+                    with logger.measure_time("hessian_max_abs_eigenvalue"):
+                        hessian_max_abs_eigenvalue = self.hessian_max_abs_eigs(
+                            iterator_for_hessian,
+                            top_n=1, max_iter=hessian_eval_num, tolerance=1e-3, show_progress=show_progress
+                        )
+                    for name, val in hessian_max_abs_eigenvalue.items():
+                        logger.add_metric(name, val[0])
+                        self._hessian_history[name].append(val[0])
 
-                if epoch in hessian_ckpt:
+                if (hessian_ckpt is not None) and (epoch in hessian_ckpt):
                     with logger.measure_time("hessian_spectra"):
                         hessian_spectra_dict = self.hessian_spectra(
                             iterator_for_hessian,

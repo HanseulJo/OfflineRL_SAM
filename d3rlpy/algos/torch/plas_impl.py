@@ -199,7 +199,7 @@ class PLASImpl(DDPGBaseImpl):
         tolerance: Optional[float],
         show_progress: Optional[bool],
     ) -> List[float]:
-        return hessian_eigenvalues(self._actor, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
+        return hessian_eigenvalues(self._policy, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
     
     def hessian_spectra_actor(self,
         iterator: TransitionIterator,
@@ -208,7 +208,7 @@ class PLASImpl(DDPGBaseImpl):
         show_progress: Optional[bool]
     ) -> Tuple[List[List[float]], List[List[float]]]:
         eigenvalues, weights = hessien_empirical_spectral_density(
-            self._actor, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
+            self._policy, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
         )
         return eigenvalues, weights
 
@@ -356,7 +356,7 @@ class PLASWithPerturbationImpl(PLASImpl):
         tolerance: Optional[float],
         show_progress: Optional[bool],
     ) -> List[float]:
-        return hessian_eigenvalues(self._actor, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
+        return hessian_eigenvalues(self._policy, self.compute_actor_loss, iterator, top_n, max_iter, tolerance, show_progress, device=self.device)
     
     def hessian_spectra_actor(self,
         iterator: TransitionIterator,
@@ -365,6 +365,6 @@ class PLASWithPerturbationImpl(PLASImpl):
         show_progress: Optional[bool]
     ) -> Tuple[List[List[float]], List[List[float]]]:
         eigenvalues, weights = hessien_empirical_spectral_density(
-            self._actor, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
+            self._policy, self.compute_actor_loss, iterator, n_run, max_iter, show_progress, device=self.device
         )
         return eigenvalues, weights
