@@ -570,7 +570,7 @@ class LearnableBase:
                 shuffle=shuffle,
             )
             self._hessian_history = defaultdict(list) 
-            print("hessian_ckpt", hessian_ckpt)  
+            LOG.debug("hessian_ckpt "+str(hessian_ckpt))  
 
         # setup logger
         logger = self._prepare_logger(
@@ -628,7 +628,11 @@ class LearnableBase:
         # refresh loss history
         self._loss_history = defaultdict(list)
 
-        # initially hidden
+        # save model initialization
+        # torch_utility.set_state_dict() now overwrites the torch.nn.Module()'s only.
+        logger.save_model(0, self)
+
+        # initial hessian spectra
         if hessian_ckpt:  # e.g. [0, n_epochs]
 
             with logger.measure_time("hessian_max_abs_eigenvalue"):

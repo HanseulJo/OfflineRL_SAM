@@ -106,7 +106,8 @@ def get_state_dict(impl: Any) -> Dict[str, Any]:
 def set_state_dict(impl: Any, chkpt: Dict[str, Any]) -> None:
     for key in _get_attributes(impl):
         obj = getattr(impl, key)
-        if isinstance(obj, (torch.nn.Module, torch.optim.Optimizer)):
+        #if isinstance(obj, (torch.nn.Module, torch.optim.Optimizer)):
+        if isinstance(obj, torch.nn.Module):  # overwrite modules only!
             obj.load_state_dict(chkpt[key])
 
 
