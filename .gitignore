@@ -7,7 +7,6 @@ d3rlpy_logs
 tensorboard
 .ipynb_checkpoints/
 changes/
-sam copy.py
 runner.py
 logs/
 experiment_notes/
