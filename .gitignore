@@ -10,3 +10,4 @@ changes/
 runner.py
 logs/
 experiment_notes/
+mujoco210-linux-x86_64.tar.gz
