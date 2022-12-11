@@ -1,6 +1,7 @@
 from argparse import ArgumentParser
 import numpy as np
 import os
+import random
 from sklearn.model_selection import train_test_split
 import torch
 from torch.optim import SGD, Adam
@@ -44,6 +45,15 @@ ALG_LR_KWARGS = {
     'TD3PlusBC': {'actor_learning_rate':3e-4, 'critic_learning_rate':3e-4},
 }
 
+def fix_seeds(random_seed):
+    torch.manual_seed(random_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(random_seed)
+        torch.cuda.manual_seed_all(random_seed) # if use multi-GPU
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    np.random.seed(random_seed)
+    random.seed(random_seed)
 
 if __name__ == '__main__':
     # Argument parsing
@@ -71,7 +81,7 @@ if __name__ == '__main__':
     #parser.add_argument('-g', '--use_gpu', default=False, type=int)
     parser.add_argument('-p', '--pretrained_path', default=None)
     parser.add_argument('-T', '--tags', type=str, help="Add tag to d3rlpy_logs/*/.")
-    parser.add_argument('-S', '--seed', default=0, type=int, help="Random seed for train-validation split.")
+    parser.add_argument('-S', '--seed', default=None, type=int, help="Random seed for train-validation split.")
     parser.add_argument('--lr_scale', default=1., type=float, help="Multiply some number to the default learning rates.")
     parser.add_argument('--lr_scale_SGD', default=1., type=float, help="Multiply some number to the default learning rates, only for SGD.")
     parser.add_argument('--verbose', action='store_true', help="Show the evaluated metrics every time. (number of printing: --logging_num)")
@@ -90,7 +100,7 @@ if __name__ == '__main__':
     env.reset()
 
     # train / validation split
-    train_episodes, test_episodes = train_test_split(dataset, test_size=0.2, random_state=args.seed)
+    train_episodes, test_episodes = train_test_split(dataset, test_size=0.2, random_state=args.seed if args.seed is not None else 0)
 
     # get algorithm type
     algorithm = getattr(d3rlpy.algos, args.algorithm_name)
@@ -121,6 +131,10 @@ if __name__ == '__main__':
         opt_string += '_' + opt_type.split('_')[0] + '_' + opt_name
     if args.rho is not None:
         opt_string += f'_Rho{args.rho}'
+    if args.lr_scale != 1.:
+        opt_string += f'_LRx{args.lr_scale}'
+    elif args.lr_scale_SGD != 1.:
+        opt_string += f'_LRx{args.lr_scale_SGD}'
     opt_string = opt_string[1:]
     #opt_string = '_'.join(sum([[opt_type.split('_')[0], opt_name] for opt_type, opt_name in opt_zip], start=[]))  # only works for higher Python version
 
@@ -141,7 +155,7 @@ if __name__ == '__main__':
         model.build_with_env(env)
         model.load_model(args.pretrained_path)
 
-    # Train
+    # scorers
     scorers = {'environment': evaluate_on_environment(env)}
     if args.algorithm_name not in ['BC', 'DiscreteBC']:
         scorers.update({
@@ -150,7 +164,14 @@ if __name__ == '__main__':
             'value_scale': average_value_estimation_scorer # smaller is better
         })
 
+    # logging directory
     logdir = os.path.join("d3rlpy_logs", args.task_name+'_'+args.tags)
+
+    # Fix seed
+    if args.seed is not None:
+        fix_seeds(args.seed)
+    
+    # Train
     model.fit(
         train_episodes,
         eval_episodes=test_episodes,
