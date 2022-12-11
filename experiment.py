@@ -48,29 +48,39 @@ ALG_LR_KWARGS = {
 if __name__ == '__main__':
     # Argument parsing
     parser = ArgumentParser()
-    parser.add_argument('task_name')
-    parser.add_argument('algorithm_name')
+    parser.add_argument('task_name',
+        help = "Example: cartpole-replay, cartpole-random, pendulum-replay, pendulum-random, hopper-medium-v0, ..."
+    )
+    parser.add_argument('algorithm_name',
+        help = "For discrete tasks, use: DiscreteBC, DiscreteBCQ, DiscreteCQL, DQN, DoubleDQN, DiscreteSAC."\
+               " | For continuous tasks, use: AWAC, BC, BCQ, BEAR, CQL, DDPG, IQL, SAC, TD3, TD3PlusBC."
+    )
     parser.add_argument('optimizers', nargs='+',
-        help="for BC & Discrete*, 1 argument (optim_name).\n"\
-             "for BCQ and BEAR, 3 arguments (actor_optim_name, critic_optim_name, imitator_optim_name).\n"\
-             "otherwise, 2 argument (actor_optim_name, critic_optim_name)."
+        help = "For BC & Discrete*, 1 argument (optim_name)."\
+               " | For BCQ and BEAR, 3 arguments (actor_optim_name, critic_optim_name, imitator_optim_name)."\
+               " | Otherwise, 2 argument (actor_optim_name, critic_optim_name)."\
+               "Available: SGD, MomentumSGD, Adam, SamSGD, ASamSGD, SamMomentumSGD, ASamMomentumSGD, SamAdam, ASamSGD."
     )
     parser.add_argument('-b', '--batch_size', default=100, type=int)
-    parser.add_argument('-r', '--rho', default=None, type=float)
-    parser.add_argument('-e', '--n_epochs', default=None, type=int)
-    parser.add_argument('-s', '--n_steps', default=None, type=int)
-    parser.add_argument('-l', '--logging_num', default=10, type=int)
-    parser.add_argument('-i', '--save_interval', default=1, type=int)
-    parser.add_argument('-v', '--n_eval', default=100, type=int)
+    parser.add_argument('-r', '--rho', default=None, type=float, help="hparam for SAM or ASAM optimizers.")
+    parser.add_argument('-e', '--n_epochs', default=None, type=int, help="Caveat: Use only either --n_epochs or --n_steps, but not both.")
+    parser.add_argument('-s', '--n_steps', default=None, type=int, help="Caveat: Use only either --n_epochs or --n_steps, but not both.")
+    parser.add_argument('-l', '--logging_num', default=10, type=int, help="How many times do you want to evaluate metrics?")
+    parser.add_argument('-i', '--save_interval', default=1, type=int, help="How many times do you want to store the models?")
+    parser.add_argument('-v', '--n_eval', default=100, type=int, help="How many times do you want to run the deployment?")
     #parser.add_argument('-g', '--use_gpu', default=False, type=int)
     parser.add_argument('-p', '--pretrained_path', default=None)
-    parser.add_argument('-T', '--tags')
-    parser.add_argument('-S', '--seed', default=0, type=int)
-    parser.add_argument('--lr_scale_SGD', default=1., type=float)
-    parser.add_argument('--verbose', action='store_true')
-    parser.add_argument('--show_progress', action='store_true')
-    parser.add_argument('-H', '--hessian_ckpt', nargs='+', type=int)
-    parser.add_argument('--hessian_eval_num', default=40, type=int)
+    parser.add_argument('-T', '--tags', type=str, help="Add tag to d3rlpy_logs/*/.")
+    parser.add_argument('-S', '--seed', default=0, type=int, help="Random seed for train-validation split.")
+    parser.add_argument('--lr_scale', default=1., type=float, help="Multiply some number to the default learning rates.")
+    parser.add_argument('--lr_scale_SGD', default=1., type=float, help="Multiply some number to the default learning rates, only for SGD.")
+    parser.add_argument('--verbose', action='store_true', help="Show the evaluated metrics every time. (number of printing: --logging_num)")
+    parser.add_argument('--show_progress', action='store_true', help="Show the progress bar (tqdm). (number of printing: --logging_num)")
+    parser.add_argument('-H', '--hessian_ckpt', nargs='+', type=int,
+        help="What epoch do you want to calculate the hessian spectra (with SLQ)? Example: `--hessian ckpt 0 1 -1` (before training, first epoch of training, and the last epoch)")
+    parser.add_argument('--hessian_eval_num', default=40, type=int,
+        help="How many times do you want to run Lanczos Algorithm in SLQ?"
+    )
     args = parser.parse_args()
     
     use_gpu = torch.cuda.is_available()
@@ -85,12 +95,11 @@ if __name__ == '__main__':
     # get algorithm type
     algorithm = getattr(d3rlpy.algos, args.algorithm_name)
     
-    
     # Default optimizers 
     OPT = {
-        'SGD': OptimizerFactory(optim_cls=SGD),
-        'MomentumSGD': OptimizerFactory(optim_cls=SGD, momentum=0.9),
-        'Adam': OptimizerFactory(optim_cls=Adam),
+        'SGD': OptimizerFactory(optim_cls=SGD, weight_decay=1e-4),
+        'MomentumSGD': OptimizerFactory(optim_cls=SGD, momentum=0.9, weight_decay=1e-4),
+        'Adam': OptimizerFactory(optim_cls=Adam, weight_decay=1e-4),
         'SamSGD': OptimizerFactory(optim_cls=SAM, base_optimizer="SGD", rho=0.001 if args.rho is None else args.rho, weight_decay=1e-4), 
         'SamMomentumSGD': OptimizerFactory(optim_cls=SAM, base_optimizer="SGD", momentum=0.9, rho=0.001 if args.rho is None else args.rho, weight_decay=1e-4), 
         'SamAdam': OptimizerFactory(optim_cls=SAM, base_optimizer="Adam", rho=0.001 if args.rho is None else args.rho, weight_decay=1e-4), 
@@ -117,9 +126,13 @@ if __name__ == '__main__':
 
     # learning rates
     lr_kwargs = ALG_LR_KWARGS[args.algorithm_name]
-    for k_opt, k_lr in zip(args.optimizers, lr_kwargs.keys()):
-        if k_opt in ['SGD', 'SamSGD', 'ASamSGD']:
-            lr_kwargs[k_lr] = lr_kwargs[k_lr] * args.lr_scale_SGD  # larger LR for SGD
+    if args.lr_scale != 1.:
+        for k_opt, k_lr in zip(args.optimizers, lr_kwargs.keys()):
+            lr_kwargs[k_lr] = lr_kwargs[k_lr] * args.lr_scale  # scale all LR
+    elif args.lr_scale_SGD != 1.:
+        for k_opt, k_lr in zip(args.optimizers, lr_kwargs.keys()):
+            if k_opt in ['SGD', 'SamSGD', 'ASamSGD']:
+                lr_kwargs[k_lr] = lr_kwargs[k_lr] * args.lr_scale_SGD  # larger LR for SGD
 
     experiment_name = f"{args.algorithm_name}_{opt_string}"
     model = algorithm(use_gpu=use_gpu, batch_size=args.batch_size, **lr_kwargs, **opt_kwargs)
