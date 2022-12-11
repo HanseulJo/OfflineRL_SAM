@@ -123,8 +123,8 @@ def iterator_hv_product(
         model.zero_grad()
         tmp_num_data = len(batch.actions)
         loss = criterion(batch, True)
-        loss.backward(create_graph=True)
-        params, gradsH = get_params_grad(model)
+        params, _ = get_params_grad(model)
+        gradsH = torch.autograd.grad(loss, params, create_graph=True)
         model.zero_grad()
         Hv = torch.autograd.grad(
             gradsH,
