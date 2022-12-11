@@ -78,7 +78,7 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--logging_num', default=10, type=int, help="How many times do you want to evaluate metrics?")
     parser.add_argument('-i', '--save_interval', default=1, type=int, help="How many times do you want to store the models?")
     parser.add_argument('-v', '--n_eval', default=100, type=int, help="How many times do you want to run the deployment?")
-    #parser.add_argument('-g', '--use_gpu', default=False, type=int)
+    parser.add_argument('-g', '--gpu', default=None, type=int)
     parser.add_argument('-p', '--pretrained_path', default=None)
     parser.add_argument('-T', '--tags', type=str, help="Add tag to d3rlpy_logs/*/.")
     parser.add_argument('-S', '--seed', default=None, type=int, help="Random seed for Train-Validation-split and Model training.")
@@ -96,7 +96,7 @@ if __name__ == '__main__':
     )
     args = parser.parse_args()
     
-    use_gpu = torch.cuda.is_available()
+    #use_gpu = torch.cuda.is_available()
 
     # Load dataset & environment
     dataset, env = get_dataset(args.task_name)
@@ -156,7 +156,9 @@ if __name__ == '__main__':
                 lr_kwargs[k_lr] = lr_kwargs[k_lr] * args.lr_scale_SGD  # larger LR for SGD
 
     # build model
-    model = algorithm(use_gpu=use_gpu, batch_size=args.batch_size, **lr_kwargs, **opt_kwargs)
+    model = algorithm(
+        use_gpu=args.gpu if args.gpu is not None else torch.cuda.is_available(),
+        batch_size=args.batch_size, **lr_kwargs, **opt_kwargs)
     if args.pretrained_path:
         model.build_with_env(env)
         model.load_model(args.pretrained_path)
