@@ -171,8 +171,8 @@ def hessian_eigenvalues(
             if show_progress:
                 range_gen.set_postfix({'eigenval': tmp_eigenvalue})
             # update eigenvalue
+            if eigenvalue is not None and abs(eigenvalue - tmp_eigenvalue) / (abs(eigenvalue) + 1e-6) < tolerance: break
             eigenvalue = tmp_eigenvalue
-            if abs(eigenvalue - tmp_eigenvalue) / (abs(eigenvalue) + 1e-6) < tolerance: break
             
         top_n_eigenvalues.append(eigenvalue)
         top_n_eigenvectors.append(v)
