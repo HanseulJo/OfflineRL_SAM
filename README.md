@@ -1,4 +1,5 @@
 # OfflineRL_SAM
+
 AI611 final project
 
 ## `Experiment.py` running example
@@ -42,3 +43,29 @@ options:
   --hessian_eval_num HESSIAN_EVAL_NUM
                         How many times do you want to run Lanczos Algorithm in SLQ?
  ```
+
+Example:
+
+```bash
+python experiment.py pendulum-replay BC SGD --tag customTag --batch_size 100 --n_steps 100000 --logging_num 100 --save_interval 10 --show_progress --hessian_ckpt 0 1 -1 --hessian_eval_num 100 --lr_scale_SGD 100
+```
+
+```bash
+python experiment.py pendulum-replay BC Adam --tag customTag --batch_size 100 --n_steps 100000  --show_progress --logging_num 100 --save_interval 10 --hessian_ckpt 0 1 -1 --hessian_eval_num 100
+```
+
+```bash
+python experiment.py pendulum-replay BC SamSGD --rho 0.001 --tag customTag --batch_size 100 --n_steps 100000 --logging_num 100 --save_interval 10 --show_progress --hessian_ckpt 0 1 -1 --hessian_eval_num 100 --lr_scale_SGD 100
+```
+
+```bash
+python experiment.py pendulum-replay BC ASamSGD --rho 0.001 --tag customTag --batch_size 100 --n_steps 100000 --logging_num 100 --save_interval 10 --show_progress --hessian_ckpt 0 1 -1 --hessian_eval_num 100 --lr_scale_SGD 100
+```
+
+```bash
+python experiment.py pendulum-replay BC SamAdam --rho 0.001 --tag customTag --batch_size 100 --n_steps 100000 --logging_num 100 --save_interval 10 --show_progress --hessian_ckpt 0 1 -1 --hessian_eval_num 100
+```
+
+```bash
+python experiment.py pendulum-replay BC ASamAdam --rho 0.001 --tag customTag --batch_size 100 --n_steps 100000 --logging_num 100 --save_interval 10 --show_progress --hessian_ckpt 0 1 -1 --hessian_eval_num 100
+```
