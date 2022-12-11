@@ -32,7 +32,7 @@ from .torch_utility import TorchMiniBatch
 
 """
 Ref:
-  - https://github.com/amirgholami/PyHessian/tree/6963082063f63ece48c1838c4888b234102a83f4
+  - https://github.com/amirgholami/PyHessian/
 
 DOCS
 
