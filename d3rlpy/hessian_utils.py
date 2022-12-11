@@ -239,8 +239,8 @@ def hessien_empirical_spectral_density(
 
         #T = torch.zeros(max_iter, max_iter).to(device)
         T = torch.diag(torch.tensor(alpha_list)).to(device)
-        T[range(1, max_iter), range(0, max_iter-1)] = torch.tensor(beta_list)
-        T[range(0, max_iter-1), range(1, max_iter)] = torch.tensor(beta_list)
+        T[range(1, max_iter), range(0, max_iter-1)] = torch.tensor(beta_list).to(device)
+        T[range(0, max_iter-1), range(1, max_iter)] = torch.tensor(beta_list).to(device)
 
         eigen_list, b_ = torch.linalg.eigh(T)
         weight_list = b_[0, :]**2
