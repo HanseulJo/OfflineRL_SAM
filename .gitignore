@@ -11,3 +11,4 @@ runner.py
 logs/
 experiment_notes/
 mujoco210-linux-x86_64.tar.gz
+d3rlpy_logs_

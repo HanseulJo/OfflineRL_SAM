@@ -312,16 +312,14 @@ class BEAR(AlgoBase):
 
         if self._grad_step < self._warmup_steps:
             actor_loss = self._impl.warmup_actor(batch)
-            metrics.update({"actor_loss": actor_loss}) # For SAM
         else:
             actor_loss = self._impl.update_actor(batch)
-            #metrics.update({"actor_loss": actor_loss})
-            ######## For SAM ##########
-            if isinstance(actor_loss, tuple):
-                actor_loss, actor_sharpness = actor_loss
-                metrics.update({"actor_loss":actor_loss, "actor_sharpness":actor_sharpness})
-            else: metrics.update({"actor_loss": actor_loss})
-            ###########################
+        ######## For SAM ##########
+        if isinstance(actor_loss, tuple):
+            actor_loss, actor_sharpness = actor_loss
+            metrics.update({"actor_loss":actor_loss, "actor_sharpness":actor_sharpness})
+        else: metrics.update({"actor_loss": actor_loss})
+        ###########################
 
         self._impl.update_actor_target()
         self._impl.update_critic_target()
