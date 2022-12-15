@@ -13,7 +13,7 @@ from ...models.optimizers import OptimizerFactory
 from ...models.q_functions import MeanQFunctionFactory
 from ...models.torch import NonSquashedNormalPolicy, ValueFunction
 from ...preprocessing import ActionScaler, RewardScaler, Scaler
-from ...torch_utility import TorchMiniBatch, torch_api, train_api
+from ...torch_utility import TorchMiniBatch, torch_api, train_api, l2_regularized_loss
 from .ddpg_impl import DDPGBaseImpl
 from ...iterators import TransitionIterator
 from ...hessian_utils import hessian_eigenvalues, hessien_empirical_spectral_density
@@ -118,7 +118,7 @@ class IQLImpl(DDPGBaseImpl):
         with torch.no_grad():
             return self._value_func(batch.next_observations)
 
-    def compute_actor_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_actor_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._policy
         if not isinstance(batch, TorchMiniBatch):
             batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
@@ -129,8 +129,10 @@ class IQLImpl(DDPGBaseImpl):
         # compute weight
         with torch.no_grad():
             weight = self._compute_weight(batch)
-
-        return -(weight * log_probs).mean()
+        loss = -(weight * log_probs).mean()
+        if l2_reg:
+            return l2_regularized_loss(loss, self._policy, self._actor_optim)
+        return loss 
 
     def _compute_weight(self, batch: TorchMiniBatch) -> torch.Tensor:
         assert self._targ_q_func
@@ -140,7 +142,7 @@ class IQLImpl(DDPGBaseImpl):
         adv = q_t - v_t
         return (self._weight_temp * adv).exp().clamp(max=self._max_weight)
 
-    def compute_value_loss(self, batch: TorchMiniBatch) -> torch.Tensor:
+    def compute_value_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
         assert self._targ_q_func
         assert self._value_func
         if not isinstance(batch, TorchMiniBatch):
@@ -149,7 +151,22 @@ class IQLImpl(DDPGBaseImpl):
         v_t = self._value_func(batch.observations)
         diff = q_t.detach() - v_t
         weight = (self._expectile - (diff < 0.0).float()).abs().detach()
-        return (weight * (diff**2)).mean()
+        loss = (weight * (diff**2)).mean()
+        if l2_reg:
+            return l2_regularized_loss(loss, self._value_func, self._critic_optim)
+        return loss
+    
+    # compute_critic_loss = _compute_critic_loss + compute_value_loss
+    def compute_critic_loss(self, batch: TorchMiniBatch, l2_reg: Optional[bool] = False) -> torch.Tensor:
+        if not isinstance(batch, TorchMiniBatch):
+            batch = TorchMiniBatch(batch, self.device, self.scaler, self.action_scaler, self.reward_scaler)
+        q_tpn = self.compute_target(batch)
+        q_loss = self._compute_critic_loss(batch, q_tpn)
+        v_loss = self.compute_value_loss(batch)
+        loss = q_loss + v_loss
+        if l2_reg:
+            return l2_regularized_loss(loss, self._q_func, self._critic_optim)
+        return loss
 
     @train_api
     @torch_api()
