@@ -40,7 +40,7 @@ class D3RLPyLogger:
     _verbose: bool
     _metrics_buffer: DefaultDict[str, List[float]]
     _figure_buffer: Dict[str, plt.Figure]
-    _hist_buffer: Dict[str, list | np.ndarray | torch.Tensor]
+    _hist_buffer: Dict[str, Any]
     _params: Optional[Dict[str, float]]
     _writer: Optional[SummaryWriter]
 
@@ -119,7 +119,7 @@ class D3RLPyLogger:
     def add_figure(self, name: str, fig: plt.Figure) -> None:
         self._figure_buffer[name] = fig
     
-    def add_histogram(self, name: str, arr: list | np.ndarray | torch.Tensor) -> None:
+    def add_histogram(self, name: str, arr: Any) -> None:
         self._hist_buffer[name] = arr if not isinstance(arr, list) else np.array(arr)
 
     def commit(self, epoch: int, step: int) -> Dict[str, float]:
