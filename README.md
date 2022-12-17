@@ -1,8 +1,10 @@
-# OfflineRL_SAM
-
 Source code for AI611 course project: "Can Sharpness-Aware Training be Beneficial for Offline RL?"
 
 Final report in Notion blog post: https://www.notion.so/Can-Sharpness-Aware-Training-be-Beneficial-for-Offline-RL-d42e4f8195c54f07a2c15673bd7b6c68
+
+The main contribution of this repository:
+- To make SAM optimizer available for every RL algorithms embedded in [d3rlpy](https://github.com/takuseno/d3rlpy)
+- To make the Hessian maximum eigenvalue (HME) and empirical spectral density of Hessian (ESD) available during training on offline reiniforcement learning dataset. (Based on [PyHessian](https://github.com/amirgholami/PyHessian))
 
 ## `Experiment.py` running example
 
