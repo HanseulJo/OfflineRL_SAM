@@ -1,6 +1,8 @@
 # OfflineRL_SAM
 
-AI611 final project
+Source code for AI611 final project: "Can Sharpness-Aware Training be Beneficial for Offline RL?"
+
+Final report in Notion blog post: https://www.notion.so/Can-Sharpness-Aware-Training-be-Beneficial-for-Offline-RL-d42e4f8195c54f07a2c15673bd7b6c68
 
 ## `Experiment.py` running example
 
