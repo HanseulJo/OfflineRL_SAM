@@ -1,6 +1,6 @@
 Source code for AI611 course project: "Can Sharpness-Aware Training be Beneficial for Offline RL?"
 
-Final report in Notion blog post: https://www.notion.so/Can-Sharpness-Aware-Training-be-Beneficial-for-Offline-RL-d42e4f8195c54f07a2c15673bd7b6c68
+Final report in Notion blog post: https://valiant-tadpole-f7f.notion.site/Can-Sharpness-Aware-Training-be-Beneficial-for-Offline-RL-d42e4f8195c54f07a2c15673bd7b6c68
 
 The main contribution of this repository:
 - To make SAM optimizer available for every RL algorithms embedded in [d3rlpy](https://github.com/takuseno/d3rlpy)
